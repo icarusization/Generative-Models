@@ -19,8 +19,22 @@ except:
     merge_summary = tf.summary.merge
     SummaryWriter = tf.summary.FileWriter
 
-def batch_norm(x,mean,variance, name="batch_norm",epsilon=1e-5):
-    return tf.nn.batch_normalization(x,mean=mean,variance=variance,variance_epsilon=epsilon,name=name,offset=None,scale=None)
+class batch_norm(object):
+    def __init__(self, epsilon=1e-5, momentum = 0.9, name="batch_norm"):
+        with tf.variable_scope(name):
+            self.epsilon  = epsilon
+            self.momentum = momentum
+            self.name = name
+
+    def __call__(self, x, train=True):
+        return tf.contrib.layers.batch_norm(x,
+                                            decay=self.momentum, 
+                                            updates_collections=None,
+                                            epsilon=self.epsilon,
+                                            scale=True,
+                                            is_training=train,
+                                            scope=self.name)
+
 
 def binary_cross_entropy(preds, targets, name=None):
     """Computes binary cross entropy given `preds`.
