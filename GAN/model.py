@@ -670,7 +670,7 @@ class WGAN(object):
                 h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim * 8, name='d_h3_conv')))
                 h4 = linear(tf.reshape(h3, [self.batch_size, -1]), 1, 'd_h3_lin')
 
-                return h4, h4
+                return tf.nn.sigmoid(h4), h4
             else:
                 yb = tf.reshape(y, [self.batch_size, 1, 1, self.y_dim])
                 x = conv_cond_concat(image, yb)
