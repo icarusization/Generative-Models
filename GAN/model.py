@@ -99,8 +99,8 @@ class DCGAN(object):
         self.d__sum = histogram_summary("d_", self.D_)
         self.G_sum = image_summary("G", self.G)
 
-        self.d_loss_real = tf.reduce_mean(self.D_logits)
-        self.d_loss_fake = tf.reduce_mean(self.D_logits_)
+        self.d_loss_real = tf.reduce_mean(self.D)
+        self.d_loss_fake = tf.reduce_mean(self.D_)
         self.g_loss = -self.d_loss_fake
 
         self.d_loss_real_sum = scalar_summary("d_loss_real", self.d_loss_real)
