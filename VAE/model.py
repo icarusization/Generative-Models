@@ -65,15 +65,15 @@ class VAE(object):
         self.images = tf.placeholder(tf.float32, [self.batch_size] + [self.output_size, self.output_size, 3],
                                      name='real_images')
         self.codes_mean,self.codes_sigma = self.encoder(self.images)
-        self.codes=self.codes_mean+self.codes_sigma*np.random.normal(0.0,1.0,size=self.z_dim)
+        self.codes_sigma=tf.sqrt(tf.exp(self.codes_sigma))
+        self.codes=self.codes_mean+self.codes_sigma*tf.random_normal([self.batch_size, self.z_dim])
         self.results = self.decoder(self.codes)
         self.sample_codes=tf.placeholder(tf.float32, [None,self.z_dim],
                                      name='sample_codes')
         self.sampler = self.sampler(self.sample_codes)
 
-        ones=tf.ones_like(tf.nn.sigmoid(self.codes))
-        regularization_loss_one_dimension=-ones+self.codes_mean**2+\
-            self.codes_sigma**2+tf.log(self.codes_sigma ** 2)
+        regularization_loss_one_dimension=-1.0+tf.square(self.codes_mean)+\
+            tf.square(self.codes_sigma)-2*tf.log(self.codes_sigma+1e-8)
 
         self.regularization_loss=0.5*tf.reduce_mean(tf.reduce_sum(regularization_loss_one_dimension,1))
         self.reconstruction_loss=0.5/self.sigma**2*tf.reduce_mean\
