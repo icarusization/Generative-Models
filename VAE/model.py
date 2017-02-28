@@ -13,8 +13,8 @@ from tensorflow.contrib import losses
 
 class VAE(object):
     def __init__(self, sess, image_size=108,sample_size=64,
-                 batch_size=64, output_size=64, z_dim=100, gf_dim=64, df_dim=64,
-                 gfc_dim=1024, dfc_dim=1024,sigma=1.0, dataset_name='default',
+                 batch_size=64, output_size=64, z_dim=100, ef_dim=64, df_dim=64,
+                 efc_dim=2048, dfc_dim=256,sigma=1.0, dataset_name='default',
                  checkpoint_dir=None, sample_dir=None):
         """
 
@@ -23,10 +23,10 @@ class VAE(object):
             batch_size: The size of batch. Should be specified before training.
             output_size: (optional) The resolution in pixels of the images. [64]
             z_dim: (optional) Dimension of dim for Z. [100]
-            gf_dim: (optional) Dimension of decoder filters in first conv layer. [64]
+            ef_dim: (optional) Dimension of decoder filters in first conv layer. [64]
             df_dim: (optional) Dimension of encoder filters in first conv layer. [64]
-            gfc_dim: (optional) Dimension of decoder units for for fully connected layer. [1024]
-            dfc_dim: (optional) Dimension of encoder units for fully connected layer. [1024]
+            efc_dim: (optional) Dimension of encoder units for for fully connected layer. [1024]
+            dfc_dim: (optional) Dimension of decoder units for fully connected layer. [1024]
         """
         self.sess = sess
         self.batch_size = batch_size
@@ -36,21 +36,22 @@ class VAE(object):
 
         self.z_dim = z_dim  # 100
 
-        self.gf_dim = gf_dim
+        self.ef_dim = ef_dim
         self.df_dim = df_dim
 
-        self.gfc_dim = gfc_dim
+        self.efc_dim = efc_dim
         self.dfc_dim = dfc_dim
 
         # batch normalization : deals with poor initialization helps gradient flow
         self.d_bn1 = batch_norm(name='d_bn1')
         self.d_bn2 = batch_norm(name='d_bn2')
         self.d_bn3 = batch_norm(name='d_bn3')
+        self.d_bn4 = batch_norm(name='d_bn4')
 
-        self.g_bn0 = batch_norm(name='g_bn0')
-        self.g_bn1 = batch_norm(name='g_bn1')
-        self.g_bn2 = batch_norm(name='g_bn2')
-        self.g_bn3 = batch_norm(name='g_bn3')
+        self.g_bn1 = batch_norm(name='g_bn0')
+        self.g_bn2 = batch_norm(name='g_bn1')
+        self.g_bn3 = batch_norm(name='g_bn2')
+        self.g_bn4 = batch_norm(name='g_bn3')
 
         #Weight of the reconstruction error
         self.sigma=sigma
@@ -148,11 +149,11 @@ class VAE(object):
         with tf.variable_scope("encoder") as scope:
             if reuse:
                 scope.reuse_variables()
-            h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
-            h1 = lrelu(self.d_bn1(conv2d(h0, self.df_dim * 2, name='d_h1_conv')))
-            h2 = lrelu(self.d_bn2(conv2d(h1, self.df_dim * 4, name='d_h2_conv')))
-            h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim * 8, name='d_h3_conv')))
-            h4 = linear(tf.reshape(h3, [self.batch_size, -1]),self.z_dim*2, 'd_h3_lin')
+            h0 = lrelu(self.d_bn1(conv2d(image, self.df_dim, name='d_h0_conv')))
+            h1 = lrelu(self.d_bn2(conv2d(h0, self.df_dim * 2, name='d_h1_conv')))
+            h2 = lrelu(self.d_bn3(conv2d(h1, self.df_dim * 4, name='d_h2_conv')))
+            h3 = lrelu(self.d_bn4(linear(tf.reshape(h2, [self.batch_size, -1]),self.efc_dim, 'd_h3_lin')))
+            h4 = lrelu(linear(h3, self.z_dim*2, 'd_h4_lin'))
             h5=tf.nn.tanh(h4)#unnecessary
             return h5[:,0:self.z_dim],h5[:,self.z_dim:] #mu,sigma
 
@@ -160,28 +161,28 @@ class VAE(object):
     def decoder(self, z):
         with tf.variable_scope("decoder") as scope:
             s = self.output_size
-            s2, s4, s8, s16 = int(s / 2), int(s / 4), int(s / 8), int(s / 16)
+            s2, s4, s8 = int(s / 2), int(s / 4), int(s / 8)
 
             # project `z` and reshape
-            self.z_, self.h0_w, self.h0_b = linear(z, self.gf_dim * 8 * s16 * s16, 'g_h0_lin', with_w=True)
+            self.z_, self.h0_w, self.h0_b = linear(z, self.df_dim * s8 * s8, 'g_h0_lin', with_w=True)
 
-            self.h0 = tf.reshape(self.z_, [-1, s16, s16, self.gf_dim * 8])
-            h0 = tf.nn.relu(self.g_bn0(self.h0))
+            self.h0 = tf.reshape(self.z_, [-1, s8, s8, self.df_dim ])
+            h0 = lrelu(self.g_bn1(self.h0))
 
             self.h1, self.h1_w, self.h1_b = deconv2d(h0,
-                                                     [self.batch_size, s8, s8, self.gf_dim * 4], name='g_h1',
+                                                     [self.batch_size, s4, s4, self.df_dim], name='g_h1',
                                                      with_w=True)
-            h1 = tf.nn.relu(self.g_bn1(self.h1))
+            h1 = lrelu(self.g_bn2(self.h1))
 
             h2, self.h2_w, self.h2_b = deconv2d(h1,
-                                                [self.batch_size, s4, s4, self.gf_dim * 2], name='g_h2',
+                                                [self.batch_size, s2, s2, self.df_dim /2], name='g_h2',
                                                 with_w=True)
-            h2 = tf.nn.relu(self.g_bn2(h2))
+            h2 = lrelu(self.g_bn3(h2))
 
             h3, self.h3_w, self.h3_b = deconv2d(h2,
-                                                [self.batch_size, s2, s2, self.gf_dim * 1], name='g_h3',
+                                                [self.batch_size, s, s, self.df_dim /4], name='g_h3',
                                                 with_w=True)
-            h3 = tf.nn.relu(self.g_bn3(h3))
+            h3 = lrelu(self.g_bn4(h3))
 
             h4, self.h4_w, self.h4_b = deconv2d(h3,
                                                 [self.batch_size, s, s, 3], name='g_h4', with_w=True)
