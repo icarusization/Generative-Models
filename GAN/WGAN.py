@@ -5,6 +5,7 @@ from glob import glob
 import tensorflow as tf
 import numpy as np
 from six.moves import xrange
+import pandas as pd
 
 from ops import *
 from utils import *
@@ -148,7 +149,10 @@ class WGAN(object):
         self.writer = SummaryWriter("./logs", self.sess.graph)
 
         sample_z = np.random.uniform(-1, 1, size=(self.sample_size, self.z_dim))
-
+        if self.y_dim:
+            anno_dir = os.path.join("./data", config.dataset, config.anno)
+            table = pd.read_table(anno_dir, delim_whitespace=True, index_col=0, header=1)
+        sample_labels = table.values[0:self.sample_size]
         sample_files = data[0:self.sample_size]
         sample = [get_image(sample_file, self.image_size, is_crop=self.is_crop, resize_w=self.output_size,
                             is_grayscale=self.is_grayscale) for sample_file in sample_files]
@@ -173,6 +177,8 @@ class WGAN(object):
                 batch_idxs = min(len(data), config.train_size) // config.batch_size
 
             for idx in xrange(0, batch_idxs):
+                if self.y_dim:
+                    batch_labels=table.values[idx * config.batch_size:(idx + 1) * config.batch_size,:]
                 batch_files = data[idx * config.batch_size:(idx + 1) * config.batch_size]
                 batch = [get_image(batch_file, self.image_size, is_crop=self.is_crop, resize_w=self.output_size,
                                    is_grayscale=self.is_grayscale) for batch_file in batch_files]
@@ -180,7 +186,6 @@ class WGAN(object):
                     batch_images = np.array(batch).astype(np.float32)[:, :, :, None]
                 else:
                     batch_images = np.array(batch).astype(np.float32)
-
                 batch_z = np.random.uniform(-1, 1, [config.batch_size, self.z_dim]) \
                     .astype(np.float32)
 
@@ -189,31 +194,47 @@ class WGAN(object):
                     # Clip all discriminator weights to be between -c and c
                     if iter % config.clip_per == 0:
                         self.sess.run(clip_discriminator)
-                    _, summary_str = self.sess.run([d_optim, self.d_sum],
+                    if self.y_dim:
+                        _, summary_str = self.sess.run([d_optim, self.d_sum],
+                                                   feed_dict={self.images: batch_images, self.z: batch_z, self.y: batch_labels})
+                    else:
+                        _, summary_str = self.sess.run([d_optim, self.d_sum],
                                                    feed_dict={self.images: batch_images, self.z: batch_z})
                     self.writer.add_summary(summary_str, counter)
 
                 # Update G network
-                _, summary_str = self.sess.run([g_optim, self.g_sum],
-                                               feed_dict={self.z: batch_z})
-                self.writer.add_summary(summary_str, counter)
+                if self.y_dim:
+                    _, summary_str = self.sess.run([g_optim, self.g_sum],
+                                               feed_dict={self.z: batch_z, self.y: batch_labels})
+                    self.writer.add_summary(summary_str, counter)
 
-                errD_fake = self.d_loss_fake.eval({self.z: batch_z})
-                errD_real = self.d_loss_real.eval({self.images: batch_images})
-                errG = self.g_loss.eval({self.z: batch_z})
+                    errD_fake = self.d_loss_fake.eval({self.z: batch_z, self.y: batch_labels})
+                    errD_real = self.d_loss_real.eval({self.images: batch_images, self.y: batch_labels})
+                    errG = self.g_loss.eval({self.z: batch_z, self.y: batch_labels})
+                else:
+                    _, summary_str = self.sess.run([g_optim, self.g_sum],
+                                               feed_dict={self.z: batch_z})
+                    self.writer.add_summary(summary_str, counter)
+
+                    errD_fake = self.d_loss_fake.eval({self.z: batch_z})
+                    errD_real = self.d_loss_real.eval({self.images: batch_images})
+                    errG = self.g_loss.eval({self.z: batch_z})
 
                 counter += 1
                 print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
-                      % (epoch, idx, batch_idxs,
-                         time.time() - start_time, errD_fake + errD_real, errG))
+                    % (epoch, idx, batch_idxs,
+                    time.time() - start_time, errD_fake + errD_real, errG))
 
                 if np.mod(counter, 100) == 1:
-                    samples, d_loss, g_loss = self.sess.run(
-                        [self.sampler, self.d_loss, self.g_loss],
-                        feed_dict={self.z: sample_z, self.images: sample_images}
-                    )
+                    if self.y_dim:
+                        samples, d_loss, g_loss = self.sess.run([self.sampler, self.d_loss, self.g_loss],
+                                                                feed_dict={self.z: sample_z, self.images: sample_images,
+                                                                               self.y: sample_labels})
+                    else:
+                        samples, d_loss, g_loss = self.sess.run([self.sampler, self.d_loss, self.g_loss],
+                                                                    feed_dict={self.z: sample_z, self.images: sample_images})
                     save_images(samples, [8, 8],
-                                './{}/train_{:02d}_{:04d}.png'.format(config.sample_dir, epoch, idx))
+                        './{}/train_{:02d}_{:04d}.png'.format(config.sample_dir, epoch, idx))
                     print("[Sample] d_loss: %.8f, g_loss: %.8f" % (d_loss, g_loss))
 
                 if np.mod(counter, 500) == 2:
@@ -241,10 +262,10 @@ class WGAN(object):
 
                 h1 = lrelu(self.d_bn1(conv2d(h0, self.df_dim + self.y_dim, name='d_h1_conv')))
                 h1 = tf.reshape(h1, [self.batch_size, -1])
-                h1 = tf.concat(1, [h1, y])
+                h1 = tf.concat([h1, y],1)
 
                 h2 = lrelu(self.d_bn2(linear(h1, self.dfc_dim, 'd_h2_lin')))
-                h2 = tf.concat(1, [h2, y])
+                h2 = tf.concat([h2, y],1)
 
                 h3 = linear(h2, 1, 'd_h3_lin')
 
@@ -287,10 +308,10 @@ class WGAN(object):
 
                 # yb = tf.expand_dims(tf.expand_dims(y, 1),2)
                 yb = tf.reshape(y, [self.batch_size, 1, 1, self.y_dim])
-                z = tf.concat(1, [z, y])
+                z = tf.concat([z, y],1)
 
                 h0 = tf.nn.relu(self.g_bn0(linear(z, self.gfc_dim, 'g_h0_lin')))
-                h0 = tf.concat(1, [h0, y])
+                h0 = tf.concat( [h0, y],1)
 
                 h1 = tf.nn.relu(self.g_bn1(linear(h0, self.gf_dim * 2 * s4 * s4, 'g_h1_lin')))
                 h1 = tf.reshape(h1, [self.batch_size, s4, s4, self.gf_dim * 2])
@@ -334,10 +355,10 @@ class WGAN(object):
 
                 # yb = tf.reshape(y, [-1, 1, 1, self.y_dim])
                 yb = tf.reshape(y, [self.batch_size, 1, 1, self.y_dim])
-                z = tf.concat(1, [z, y])
+                z = tf.concat([z, y],1)
 
                 h0 = tf.nn.relu(self.g_bn0(linear(z, self.gfc_dim, 'g_h0_lin')))
-                h0 = tf.concat(1, [h0, y])
+                h0 = tf.concat([h0, y],1)
 
                 h1 = tf.nn.relu(self.g_bn1(linear(h0, self.gf_dim * 2 * s4 * s4, 'g_h1_lin'), train=False))
                 h1 = tf.reshape(h1, [self.batch_size, s4, s4, self.gf_dim * 2])
@@ -369,6 +390,7 @@ class WGAN(object):
         checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
 
         ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
+
         if ckpt and ckpt.model_checkpoint_path:
             ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
             self.saver.restore(self.sess, os.path.join(checkpoint_dir, ckpt_name))

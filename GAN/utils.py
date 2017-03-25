@@ -56,4 +56,26 @@ def transform(image, npx=64, is_crop=True, resize_w=64):
 def inverse_transform(images):
     return (images+1.)/2.
 
+def read_anno(path, y_dim):
+    result = np.empty([0,y_dim])
+    file = open(path, "r")
+    i = 0 
+    for line in file:
+        if i<2:
+            i+=1
+        else:
+            sline = line.split()
+            sline[1]=sline[1]/2.78125
+            sline[2]=sline[2]/3.40625
+            sline[3]=sline[3]/2.78125
+            sline[4]=sline[4]/3.40625
+            sline[5]=sline[5]/2.78125
+            sline[6]=sline[6]/3.40625
+            sline[7]=sline[7]/2.78125
+            sline[8]=sline[8]/3.40625
+            sline[9]=sline[9]/2.78125
+            sline[10]=sline[10]/3.40625
+            np.vstack([result,sline[1:]])
+    file.close()
+    return result
 

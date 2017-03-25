@@ -2,7 +2,7 @@ import os
 import scipy.misc
 import numpy as np
 
-from model import WGAN
+from WGAN import WGAN
 from utils import pp
 
 import tensorflow as tf
@@ -16,7 +16,7 @@ flags.DEFINE_integer("batch_size", 64, "The size of batch images [64]")
 flags.DEFINE_integer("image_size", 64, "The size of image to use (will be center cropped) [108]")
 flags.DEFINE_integer("output_size", 64, "The size of the output images to produce [64]")
 flags.DEFINE_integer("c_dim", 3, "Dimension of image color. [3]")
-flags.DEFINE_string("dataset", "imagenet", "The name of dataset [celebA, mnist, lsun]")
+flags.DEFINE_string("dataset", "celeba", "The name of dataset [celebA, mnist, lsun]")
 flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
 flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
 flags.DEFINE_boolean("is_train", True, "True for training, False for testing [False]")
@@ -25,7 +25,8 @@ flags.DEFINE_boolean("visualize", False, "True for visualizing, False for nothin
 flags.DEFINE_float("clip_value", 0.01, "Value to which to clip the discriminator weights[0.01]")
 flags.DEFINE_integer("clip_per",1, "Experimental. Clip discriminator weights every this many steps. Only works reliably if clip_per=<d_iters")
 flags.DEFINE_integer("d_iters",1, "Number of discriminator training steps per generator training step")
-
+flags.DEFINE_integer("y_dim",40,"Number of dimensions for y")
+flags.DEFINE_string("anno", "list_attr_celeba.txt", "The name of Annotation file")
 
 FLAGS = flags.FLAGS
 
@@ -44,6 +45,7 @@ def main(_):
                       image_size=FLAGS.image_size,
                       batch_size=FLAGS.batch_size,
                       output_size=FLAGS.output_size,
+                      y_dim=FLAGS.y_dim,
                       c_dim=FLAGS.c_dim,
                       dataset_name=FLAGS.dataset,
                       is_crop=FLAGS.is_crop,
