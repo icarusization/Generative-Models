@@ -370,6 +370,11 @@ class WGAN(object):
 
                 return tf.nn.sigmoid(deconv2d(h2, [self.batch_size, s, s, self.c_dim], name='g_h3'))
 
+    def display(self, path, z):
+        sample_z = np.random.uniform(-1, 1, size=(64, self.z_dim))
+        sample_z[0] = z
+        samples = self.sess.run(self.sampler, feed_dict={self.z: sample_z})
+        return samples[0]
 
     def save(self, checkpoint_dir, step):
         model_name = "DCGAN.model"

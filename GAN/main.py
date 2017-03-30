@@ -4,6 +4,9 @@ import numpy as np
 
 from WGAN import WGAN
 from utils import pp
+from GUI import GUI
+from Tkinter import *
+from PIL import ImageTk, Image
 
 import tensorflow as tf
 
@@ -19,13 +22,14 @@ flags.DEFINE_integer("c_dim", 3, "Dimension of image color. [3]")
 flags.DEFINE_string("dataset", "celeba", "The name of dataset [celebA, mnist, lsun]")
 flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
 flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
-flags.DEFINE_boolean("is_train", True, "True for training, False for testing [False]")
+flags.DEFINE_boolean("is_train", False, "True for training, False for testing [False]")
 flags.DEFINE_boolean("is_crop", True, "True for training, False for testing [False]")
 flags.DEFINE_boolean("visualize", False, "True for visualizing, False for nothing [False]")
+flags.DEFINE_boolean("is_GUI", True, "True for GUI, False for nothing [True]")
 flags.DEFINE_float("clip_value", 0.01, "Value to which to clip the discriminator weights[0.01]")
 flags.DEFINE_integer("clip_per",1, "Experimental. Clip discriminator weights every this many steps. Only works reliably if clip_per=<d_iters")
 flags.DEFINE_integer("d_iters",1, "Number of discriminator training steps per generator training step")
-flags.DEFINE_integer("y_dim",40,"Number of dimensions for y")
+flags.DEFINE_integer("y_dim",None,"Number of dimensions for y")
 flags.DEFINE_string("anno", "list_attr_celeba.txt", "The name of Annotation file")
 
 FLAGS = flags.FLAGS
@@ -56,6 +60,13 @@ def main(_):
             wgan.train(FLAGS)
         else:
             wgan.load(FLAGS.checkpoint_dir)
+
+        if FLAGS.is_GUI:
+            root = Tk()
+            #img = ImageTk.PhotoImage(Image.open(path).resize((64,64)))
+            my_gui = GUI(root, wgan)
+
+            root.mainloop()
 
 
 if __name__ == '__main__':
