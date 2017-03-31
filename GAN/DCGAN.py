@@ -202,22 +202,23 @@ class DCGAN(object):
                     self.writer.add_summary(summary_str, counter)
 
                 # Update G network
-                if self.y_dim:
-                    _, summary_str = self.sess.run([g_optim, self.g_sum],
-                                               feed_dict={self.z: batch_z, self.y: batch_labels})
-                    self.writer.add_summary(summary_str, counter)
+                for iter in range(config.g_iters):
+                    if self.y_dim:
+                        _, summary_str = self.sess.run([g_optim, self.g_sum],
+                                                   feed_dict={self.z: batch_z, self.y: batch_labels})
+                        self.writer.add_summary(summary_str, counter)
 
-                    errD_fake = self.d_loss_fake.eval({self.z: batch_z, self.y: batch_labels})
-                    errD_real = self.d_loss_real.eval({self.images: batch_images, self.y: batch_labels})
-                    errG = self.g_loss.eval({self.z: batch_z, self.y: batch_labels})
-                else:
-                    _, summary_str = self.sess.run([g_optim, self.g_sum],
-                                               feed_dict={self.z: batch_z})
-                    self.writer.add_summary(summary_str, counter)
+                        errD_fake = self.d_loss_fake.eval({self.z: batch_z, self.y: batch_labels})
+                        errD_real = self.d_loss_real.eval({self.images: batch_images, self.y: batch_labels})
+                        errG = self.g_loss.eval({self.z: batch_z, self.y: batch_labels})
+                    else:
+                        _, summary_str = self.sess.run([g_optim, self.g_sum],
+                                                   feed_dict={self.z: batch_z})
+                        self.writer.add_summary(summary_str, counter)
 
-                    errD_fake = self.d_loss_fake.eval({self.z: batch_z})
-                    errD_real = self.d_loss_real.eval({self.images: batch_images})
-                    errG = self.g_loss.eval({self.z: batch_z})
+                        errD_fake = self.d_loss_fake.eval({self.z: batch_z})
+                        errD_real = self.d_loss_real.eval({self.images: batch_images})
+                        errG = self.g_loss.eval({self.z: batch_z})
 
                 counter += 1
                 print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \

@@ -29,6 +29,7 @@ flags.DEFINE_boolean("is_GUI", True, "True for GUI, False for nothing [True]")
 flags.DEFINE_float("clip_value", 0.01, "Value to which to clip the discriminator weights[0.01]")
 flags.DEFINE_integer("clip_per",1, "Experimental. Clip discriminator weights every this many steps. Only works reliably if clip_per=<d_iters")
 flags.DEFINE_integer("d_iters",1, "Number of discriminator training steps per generator training step")
+flags.DEFINE_integer("g_iters",2, "Number of generator training steps per generator training step")
 flags.DEFINE_integer("y_dim",None,"Number of dimensions for y")
 flags.DEFINE_string("anno", "list_attr_celeba.txt", "The name of Annotation file")
 
