@@ -5,4 +5,4 @@ Update it to WGAN(With label smoothing, without virtual batch normalization)<br>
 Contain three datasets.<br>
 ##VAE(Variational Autoencoder)
 Here is our latest GUI!<br>
-![alt tag](https://github.com/icarusization/Generative-Models/tree/master/GAN/GUI.jpg)
+![alt tag](https://github.com/icarusization/Generative-Models/tree/master/GAN/GUI.png)
