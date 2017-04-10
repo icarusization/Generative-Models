@@ -1,166 +1,153 @@
 from Tkinter import *
 from PIL import ImageTk, Image
+from VSF import VerticalScrolledFrame
 from random import *
-from WGAN import WGAN
+from DCGAN import DCGAN
 from utils import *
+from embedding import tools
 import scipy.misc
 import numpy as np
-import tensorflow as tf
-
-path="input.jpg"
-zmapwidth=20
-zmapcount=10
-MARGIN=5
-displaysize=128
-WIDTH=zmapwidth*zmapcount
-HEIGHT=zmapwidth*zmapcount
 
 
 
+
+path="output.png"
+window_height = 450
+window_width = 900
+iconsize = 64
+finalsize = 128
 
 class GUI:
-    def __init__(self, master, wgan=None):
-        self.wgan = wgan
-        self.path = path
-        self.col = int(-1)
-        self.row = int(-1)
-        self.zdata = np.zeros((zmapcount,zmapcount),dtype=np.int32)
-
-        self.master = master
-        master.title("Icarusization@github")
-
-        self.label = Label(master, text="Try to create a figure!")
-        self.label.pack()
-
-        
-        self.display = Canvas(master, width=displaysize, height=displaysize)
-        self.display.pack()
-
-        self.zmap = Canvas(master, width=WIDTH+5, height=HEIGHT+5)
-        self.zmap.pack()
-        self.drawzmap()
-
-        self.zmap.bind("<Button-1>", self.cell_clicked)
-
-        self.slider = Scale(master, from_=0, to=99, length=300, tickinterval=99, orient=HORIZONTAL, command=self.slided)
-        self.slider.pack()
-
-        self.run_button = Button(master, text="Run", command=self.run, highlightcolor="red")
-        self.run_button.pack()
-        
-        self.shuffle_button = Button(master, text="Shuffle", command=self.shuffle)
-        self.shuffle_button.pack()
-        
-        self.reset_button = Button(master, text="Reset", command=self.reset)
-        self.reset_button.pack()
-
-        self.close_button = Button(master, text="Close", command=master.quit)
-        self.close_button.pack()
+	def __init__(self, master, dcgan):
+		self.embedding_model = tools.load_model()
+		self.dcgan = dcgan
+		self.master = master
 
 
-    def reset(self):
-        self.col = int(-1)
-        self.row = int(-1)
-        self.zdata = np.zeros((zmapcount,zmapcount),dtype=np.int32)
-        self.slider.set(0)
-        self.drawzmap()
-        
+		self.master.title("Icarusization@github")
 
-    def run(self):
-        z = (self.zdata.reshape((1,100))-49.5)/49.5
-        img = self.wgan.display(self.path, z)
-        img = np.clip(128*(img+1),0,255)
-        img = np.uint8(img)
-        scipy.misc.imsave("output.png", img)
-        array = Image.fromarray(img).resize((displaysize,displaysize))
-        self.img = ImageTk.PhotoImage(array)
-        self.display.create_image(displaysize/2,displaysize/2,image=self.img)
-        #self.display.pack()
+		self.panedwindow = PanedWindow(master)
+		self.panedwindow.pack(fill=BOTH, expand=1)
 
-    def shuffle(self):
-        self.col = int(-1)
-        self.row = int(-1)
-        for i in xrange(zmapcount):
-            for j in xrange(zmapcount):
-                self.zdata[i][j] = randint(0,99)
-        self.drawzmap()
+		self.left = PanedWindow(self.panedwindow, orient=VERTICAL)
+		self.panedwindow.add(self.left, width=window_width/3, height=window_height)
 
-    def slided(self, val):
-        col, row = self.col, self.row
-        if col!=-1:
-            self.zdata[row][col]=int(val)
-            color = "gray"+str(99-int(val))
-            x0 = MARGIN + col * zmapwidth
-            y0 = MARGIN + row * zmapwidth 
-            x1 = MARGIN + (col+1) * zmapwidth
-            y1 = MARGIN + (row+1) * zmapwidth 
-            self.zmap.create_rectangle(x0, y0, x1, y1, fill = color)
-        self.red()
+		self.middle = PanedWindow(self.panedwindow, orient=VERTICAL)
+		self.panedwindow.add(self.middle, width=window_width/3, height=window_height)
 
-    def drawzmap(self):
-        for i in xrange(zmapcount+1):
-            color = "black" 
+		self.right = PanedWindow(self.panedwindow, orient=VERTICAL)
+		self.panedwindow.add(self.right, width=window_width/3, height=window_height)
 
-            x0 = MARGIN + i * zmapwidth 
-            y0 = MARGIN 
-            x1 = MARGIN + i * zmapwidth 
-            y1 = HEIGHT + MARGIN  
-            self.zmap.create_line(x0, y0, x1, y1, fill=color)
+		self.textField = Text(self.left, height=window_height/3, width=window_width/3)
+		self.textField.insert(END, "Please enter here")
+		self.left.add(self.textField, height=window_height/3)
 
-            x0 = MARGIN 
-            y0 = MARGIN + i * zmapwidth 
-            x1 = WIDTH + MARGIN 
-            y1 = MARGIN + i * zmapwidth 
-            self.zmap.create_line(x0, y0, x1, y1, fill=color)
-        
-        for i in xrange(zmapcount):
-            for j in xrange(zmapcount):
-                color = "gray"+str(99-self.zdata[i][j])
-                x0 = MARGIN + j * zmapwidth
-                y0 = MARGIN + i * zmapwidth 
-                x1 = MARGIN + (j+1) * zmapwidth
-                y1 = MARGIN + (i+1) * zmapwidth 
-                self.zmap.create_rectangle(x0, y0, x1, y1, fill = color)
+		self.textButtons = PanedWindow(self.left, orient=HORIZONTAL)
+		self.left.add(self.textButtons, height=window_height/6)
+		self.textButtonrun = Button(self.textButtons, text="Run", command=self.textRun)
+		self.textButtonrandom = Button(self.textButtons, text="Random", command=self.textRandom)
+		self.textButtonreset = Button(self.textButtons, text="Reset", command=self.textReset)
+		self.textButtons.add(self.textButtonrun, width=window_width/9, height=window_height/6)
+		self.textButtons.add(self.textButtonrandom, width=window_width/9, height=window_height/6)
+		self.textButtons.add(self.textButtonreset, width=window_width/9, height=window_height/6)
 
-        self.red()
+		self.s1 = Scale(self.left, from_=0, width=10, to=99, length=30, tickinterval=99, orient=HORIZONTAL)
+		self.left.add(self.s1, height=window_height/9)
 
-        
+		self.s2 = Scale(self.left, from_=0, width=10, to=99, length=30, tickinterval=99, orient=HORIZONTAL)
+		self.left.add(self.s2, height=window_height/9)
 
-    def cell_clicked(self, event):
-        x, y = event.x, event.y
-        if (MARGIN < x < WIDTH - MARGIN and MARGIN < y < HEIGHT - MARGIN):
-            #self.zmap.focus_set()
+		self.s3 = Scale(self.left, from_=0, width=10, to=99, length=30, tickinterval=99, orient=HORIZONTAL)
+		self.left.add(self.s3, height=window_height/9)
 
-            # get row and col numbers from x,y coordinates
-            self.row, self.col = int((y - MARGIN) / zmapwidth), int((x - MARGIN) / zmapwidth)
-            self.slider.set(self.zdata[self.row][self.col])
-            self.drawzmap()
 
-    def red(self):
-        col, row = self.col, self.row
-        if col!=-1:
-            for i in xrange(2):
-                color = "red" 
+		self.scaleButtons = PanedWindow(self.left, orient=HORIZONTAL)
+		self.left.add(self.scaleButtons, height=window_height/6)
+		self.scaleButtonrun = Button(self.scaleButtons, text="Run", command=self.scaleRun)
+		self.scaleButtonrandom = Button(self.scaleButtons, text="Random", command=self.scaleRandom)
+		self.scaleButtonreset = Button(self.scaleButtons, text="Reset", command=self.scaleReset)
+		self.scaleButtons.add(self.scaleButtonrun, width=window_width/9, height=window_height/6)
+		self.scaleButtons.add(self.scaleButtonrandom, width=window_width/9, height=window_height/6)
+		self.scaleButtons.add(self.scaleButtonreset, width=window_width/9, height=window_height/6)
 
-                x0 = MARGIN + (i+col) * zmapwidth 
-                y0 = MARGIN + row * zmapwidth
-                x1 = MARGIN + (i+col) * zmapwidth 
-                y1 = MARGIN + (row+1) * zmapwidth
-                self.zmap.create_line(x0, y0, x1, y1, fill=color)
 
-                x0 = MARGIN + col * zmapwidth
-                y0 = MARGIN + (i+row) * zmapwidth 
-                x1 = MARGIN + (col+1) * zmapwidth
-                y1 = MARGIN + (i+row) * zmapwidth 
-                self.zmap.create_line(x0, y0, x1, y1, fill=color)
 
-            
-        
+
+		self.img = ImageTk.PhotoImage(Image.open(path).resize((64,64)))
+		self.bigimg = ImageTk.PhotoImage(Image.open(path).resize((finalsize,finalsize)))
+
+
+		self.textImageField = VerticalScrolledFrame(self.middle)
+		self.middle.add(self.textImageField, height=window_height/2, width=window_width/3)
+		self.textImageLabels=[]
+		
+		self.scaleImageField = VerticalScrolledFrame(self.middle)
+		self.middle.add(self.scaleImageField, height=window_height/2, width=window_width/3)
+
+		
+		self.mergedimage = Label(self.right, image=self.bigimg)
+		self.right.add(self.mergedimage, height=window_height*2/3, width=window_width/3)
+
+		
+
+
+
+
+		
+
+		self.projectButtons = PanedWindow(self.right, orient=HORIZONTAL)
+		self.right.add(self.projectButtons)
+		self.projectButtonrun = Button(self.projectButtons, text="Run", command=self.projectRun)
+		self.projectButtonrandom = Button(self.projectButtons, text="Random", command=self.projectRandom)
+		self.projectClose = Button(self.projectButtons, text="Close", command=master.quit)
+		self.projectButtons.add(self.projectButtonrun, width=window_width/9, height=window_height/6)
+		self.projectButtons.add(self.projectButtonrandom, width=window_width/9, height=window_height/6)
+		self.projectButtons.add(self.projectClose, width=window_width/9, height=window_height/6)
+		
+	def textRun(self):
+		for label in self.textImageLabels:
+			label.pack_forget()
+		text = self.textField.get("1.0",END)
+		embeddings=tools.encode_sentences(self.embedding_model,X=[text], verbose=False)
+		self.textImages=[]
+		imgs=np.clip(128*(self.dcgan.display(embeddings)+1),0,255)
+		imgs=np.uint8(imgs)
+		for i in range(10):
+			img=ImageTk.PhotoImage(Image.fromarray(imgs[i]).resize((iconsize,iconsize)))
+			self.textImages.append(img)
+		
+		for i in range(10):
+			self.textImageLabels.append(Label(self.textImageField.interior, image=self.textImages[i]))
+			self.textImageLabels[-1].pack()
+
+		self.bigimg = ImageTk.PhotoImage(Image.fromarray(imgs[0]).resize((finalsize,finalsize)))
+		self.mergedimage.config(image=self.bigimg)
+
+
+	def textReset(self):
+		pass
+
+	def textRandom(self):
+		pass
+
+	def scaleRun(self):
+		pass
+
+	def scaleReset(self):
+		pass
+
+	def scaleRandom(self):
+		pass
+	
+	def projectRandom(self):
+		pass
+		
+	def projectRun(self):
+		pass	
+
+
 if __name__=='__main__':
-    
-    root = Tk()
-    img = ImageTk.PhotoImage(Image.open(path).resize((64,64)))
-    
-    my_gui = GUI(root, img)
+	root = Tk()
+	my_gui = GUI(root)
 
-    root.mainloop()
+	root.mainloop()

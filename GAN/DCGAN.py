@@ -401,14 +401,26 @@ class DCGAN(object):
                         os.path.join(checkpoint_dir, model_name),
                         global_step=step)
 
+    def display(self, embeddings, z=None):
+        result = None
+        embedding4feed=[]
+        for i in xrange(self.sample_size):
+            embedding4feed.append(embeddings[0])
+        if z==None:
+            sample_z = np.random.uniform(-1, 1, size=(self.sample_size, self.z_dim))            
+            result = self.sess.run(self.sampler,feed_dict={self.z: sample_z,self.embedding: embedding4feed})
+
+        return result
+
+
     def load(self, checkpoint_dir):
         print(" [*] Reading checkpoints...")
 
         model_dir = "%s_%s_%s" % (self.dataset_name, self.batch_size, self.output_size)
         checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
-
+        
         ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
-
+        
         if ckpt and ckpt.model_checkpoint_path:
             ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
             self.saver.restore(self.sess, os.path.join(checkpoint_dir, ckpt_name))

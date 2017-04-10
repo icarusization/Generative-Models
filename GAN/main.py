@@ -6,7 +6,6 @@ from DCGAN import DCGAN
 from utils import pp
 from GUI import GUI
 from Tkinter import *
-from PIL import ImageTk, Image
 
 import tensorflow as tf
 
@@ -23,9 +22,10 @@ flags.DEFINE_integer("c_dim", 3, "Dimension of image color. [3]")
 flags.DEFINE_string("dataset", "coco", "The name of dataset [celebA, mnist, lsun]")
 flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
 flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
-flags.DEFINE_boolean("is_train", True, "True for training, False for testing [False]")
+flags.DEFINE_boolean("is_train", False, "True for training, False for testing [False]")
 flags.DEFINE_boolean("is_crop", False, "True for training, False for testing [False]")
 flags.DEFINE_boolean("visualize", False, "True for visualizing, False for nothing [False]")
+flags.DEFINE_boolean("is_GUI", True, "True for GUI, False for nothing [True]")
 #flags.DEFINE_float("clip_value", 0.01, "Value to which to clip the discriminator weights[0.01]")
 #flags.DEFINE_integer("clip_per",1, "Experimental. Clip discriminator weights every this many steps. Only works reliably if clip_per=<d_iters")
 flags.DEFINE_integer("d_iters",1, "Number of discriminator training steps per generator training step")
@@ -33,8 +33,6 @@ flags.DEFINE_integer("g_iters",2, "Number of generator training steps per genera
 flags.DEFINE_integer("y_dim",128,"Number of dimensions for y")
 flags.DEFINE_integer("embedding_dim",1024,"Number of dimensions for embedding")
 flags.DEFINE_string("anno", "captions_train2014.json", "The name of Annotation file")
-
-flags.DEFINE_boolean("is_GUI", True, "True for GUI, False for nothing [True]")
 
 FLAGS = flags.FLAGS
 
@@ -46,8 +44,9 @@ def main(_):
         os.makedirs(FLAGS.checkpoint_dir)
     if not os.path.exists(FLAGS.sample_dir):
         os.makedirs(FLAGS.sample_dir)
-    config=tf.ConfigProto()
-    config.gpu_options.allow_growth=True
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    #config.gpu_options.per_process_gpu_memory_fraction = 0.6
     with tf.Session(config=config) as sess:
         dcgan = DCGAN(sess,
                       image_size=FLAGS.image_size,
@@ -68,9 +67,7 @@ def main(_):
 
         if FLAGS.is_GUI:
             root = Tk()
-            #img = ImageTk.PhotoImage(Image.open(path).resize((64,64)))
-            my_gui = GUI(root, wgan)
-
+            myGUI = GUI(root, dcgan)
             root.mainloop()
 
 
