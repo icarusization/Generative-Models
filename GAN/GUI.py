@@ -1,6 +1,5 @@
 from Tkinter import *
 from PIL import ImageTk, Image
-from VSF import VerticalScrolledFrame
 from random import *
 from DCGAN import DCGAN
 from utils import *
@@ -12,8 +11,8 @@ import numpy as np
 
 
 path="output.png"
-window_height = 450
-window_width = 900
+window_height = 540
+window_width = 720
 iconsize = 64
 finalsize = 128
 
@@ -71,21 +70,17 @@ class GUI:
 		self.scaleButtons.add(self.scaleButtonreset, width=window_width/9, height=window_height/6)
 
 
-
-
-		self.img = ImageTk.PhotoImage(Image.open(path).resize((64,64)))
-		self.bigimg = ImageTk.PhotoImage(Image.open(path).resize((finalsize,finalsize)))
-
-
-		self.textImageField = VerticalScrolledFrame(self.middle)
+		self.textImageField = Canvas(self.middle, width=window_width/2, height=window_height/2)
 		self.middle.add(self.textImageField, height=window_height/2, width=window_width/3)
-		self.textImageLabels=[]
+		self.textImageField.bind("<Button-1>", self.text_clicked)
+		self.textImagesIcon=[]
 		
-		self.scaleImageField = VerticalScrolledFrame(self.middle)
+		self.scaleImageField = Canvas(self.middle, width=window_width/2, height=window_height/2)
 		self.middle.add(self.scaleImageField, height=window_height/2, width=window_width/3)
-
+		self.scaleImageField.bind("<Button-1>", self.scale_clicked)
+		self.scaleImagesIcon=[]
 		
-		self.mergedimage = Label(self.right, image=self.bigimg)
+		self.mergedimage = Label(self.right)
 		self.right.add(self.mergedimage, height=window_height*2/3, width=window_width/3)
 
 		
@@ -105,23 +100,20 @@ class GUI:
 		self.projectButtons.add(self.projectClose, width=window_width/9, height=window_height/6)
 		
 	def textRun(self):
-		for label in self.textImageLabels:
-			label.pack_forget()
 		text = self.textField.get("1.0",END)
 		embeddings=tools.encode_sentences(self.embedding_model,X=[text], verbose=False)
-		self.textImages=[]
+		self.textImagesIcon=[]
 		imgs=np.clip(128*(self.dcgan.display(embeddings)+1),0,255)
 		imgs=np.uint8(imgs)
-		for i in range(10):
+		self.textImages = imgs
+		for i in range(9):
 			img=ImageTk.PhotoImage(Image.fromarray(imgs[i]).resize((iconsize,iconsize)))
-			self.textImages.append(img)
+			self.textImagesIcon.append(img)
+			self.textImageField.create_image(window_width*((i%3)/9.0+1.0/18.0),window_height*((i/3)/6.0+1.0/12.0),image=self.textImagesIcon[i])
 		
-		for i in range(10):
-			self.textImageLabels.append(Label(self.textImageField.interior, image=self.textImages[i]))
-			self.textImageLabels[-1].pack()
 
-		self.bigimg = ImageTk.PhotoImage(Image.fromarray(imgs[0]).resize((finalsize,finalsize)))
-		self.mergedimage.config(image=self.bigimg)
+		#self.bigimg = ImageTk.PhotoImage(Image.fromarray(imgs[0]).resize((finalsize,finalsize)))
+		#self.mergedimage.config(image=self.bigimg)
 
 
 	def textReset(self):
@@ -145,6 +137,14 @@ class GUI:
 	def projectRun(self):
 		pass	
 
+	def text_clicked(self, event):
+		x, y = event.x, event.y
+		figureid=int(6*y/window_height)*3 + int(9*x/window_width)
+		self.bigimg=ImageTk.PhotoImage(Image.fromarray(self.textImages[figureid]).resize((finalsize,finalsize)))
+		self.mergedimage.config(image=self.bigimg)
+
+	def scale_clicked(self, event):
+		pass
 
 if __name__=='__main__':
 	root = Tk()
