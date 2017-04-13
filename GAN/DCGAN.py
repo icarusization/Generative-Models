@@ -401,15 +401,19 @@ class DCGAN(object):
                         os.path.join(checkpoint_dir, model_name),
                         global_step=step)
 
-    def display(self, embeddings, z=None):
+    def display(self, embeddings=None, z=None):
         result = None
-        embedding4feed=[]
-        for i in xrange(self.sample_size):
-            embedding4feed.append(embeddings[0])
-        if z==None:
-            sample_z = np.random.uniform(-1, 1, size=(self.sample_size, self.z_dim))            
+        sample_z = np.random.uniform(-1, 1, size=(self.sample_size, self.z_dim))
+        if z!=None:
+            for eachz in sample_z:
+                eachz[0:len(z)] = z
+        if embeddings!=None:
+            embedding4feed=[]
+            for i in xrange(self.sample_size):
+                embedding4feed.append(embeddings[0])
             result = self.sess.run(self.sampler,feed_dict={self.z: sample_z,self.embedding: embedding4feed})
-
+        else:
+            result = self.sess.run(self.sampler,feed_dict={self.z: sample_z})
         return result
 
 
