@@ -1,6 +1,6 @@
 from Tkinter import *
 from PIL import ImageTk, Image
-from random import *
+from random import randint
 from DCGAN import DCGAN
 from utils import *
 from embedding import tools
@@ -16,12 +16,22 @@ window_width = 720
 iconsize = 64
 finalsize = 128
 
+zmapwidth=20
+zmapcount=10
+MARGIN=5
+displaysize=128
+WIDTH=zmapwidth*zmapcount
+HEIGHT=zmapwidth*zmapcount
+
 class GUI:
-	def __init__(self, master, dcgan):
+	def __init__(self, master, dcgan=None, dcgan2=None):
 		self.embedding_model = tools.load_model()
-		self.dcgan = dcgan
+		self.dcgan = dcgan2
+		self.dcgan2 = dcgan2
 		self.master = master
 
+
+		self.zdata = np.zeros(90,dtype=np.int32)
 
 		self.master.title("Icarusization@github")
 
@@ -50,15 +60,17 @@ class GUI:
 		self.textButtons.add(self.textButtonrandom, width=window_width/9, height=window_height/6)
 		self.textButtons.add(self.textButtonreset, width=window_width/9, height=window_height/6)
 
-		self.s1 = Scale(self.left, from_=0, width=10, to=99, length=30, tickinterval=99, orient=HORIZONTAL)
+
+		
+		self.s1 = Scale(self.left, from_=0, width=10, to=99, length=30, tickinterval=99, orient=HORIZONTAL, command=self.slided1)
 		self.left.add(self.s1, height=window_height/9)
 
-		self.s2 = Scale(self.left, from_=0, width=10, to=99, length=30, tickinterval=99, orient=HORIZONTAL)
+		self.s2 = Scale(self.left, from_=0, width=10, to=99, length=30, tickinterval=99, orient=HORIZONTAL, command=self.slided2)
 		self.left.add(self.s2, height=window_height/9)
 
-		self.s3 = Scale(self.left, from_=0, width=10, to=99, length=30, tickinterval=99, orient=HORIZONTAL)
+		self.s3 = Scale(self.left, from_=0, width=10, to=99, length=30, tickinterval=99, orient=HORIZONTAL, command=self.slided3)
 		self.left.add(self.s3, height=window_height/9)
-
+		
 
 		self.scaleButtons = PanedWindow(self.left, orient=HORIZONTAL)
 		self.left.add(self.scaleButtons, height=window_height/6)
@@ -103,7 +115,7 @@ class GUI:
 		text = self.textField.get("1.0",END)
 		embeddings=tools.encode_sentences(self.embedding_model,X=[text], verbose=False)
 		self.textImagesIcon=[]
-		imgs=np.clip(128*(self.dcgan.display(embeddings)+1),0,255)
+		imgs=np.clip(128*(self.dcgan.display(embeddings=embeddings)+1),0,255)
 		imgs=np.uint8(imgs)
 		self.textImages = imgs
 		for i in range(9):
@@ -117,25 +129,59 @@ class GUI:
 
 
 	def textReset(self):
-		pass
+		self.textField.delete("1.0",END)
 
 	def textRandom(self):
 		pass
 
 	def scaleRun(self):
-		pass
+		z = (self.zdata-49.5)/49.5
+		self.scaleImagesIcon=[]
+		imgs=np.clip(128*(self.dcgan.display(z=z)+1),0,255)
+		imgs=np.uint8(imgs)
+		self.scaleImages = imgs
+		for i in range(9):
+			img=ImageTk.PhotoImage(Image.fromarray(imgs[i]).resize((iconsize,iconsize)))
+			self.scaleImagesIcon.append(img)
+			self.scaleImageField.create_image(window_width*((i%3)/9.0+1.0/18.0),window_height*((i/3)/6.0+1.0/12.0),image=self.scaleImagesIcon[i])
 
 	def scaleReset(self):
-		pass
+		self.zdata = np.zeros(1024,dtype=np.int32)
+		self.s1.set(0)
+		self.s2.set(0)
+		self.s3.set(0)
+		self.scaleRun()
 
 	def scaleRandom(self):
-		pass
+		r=randint(0,99)
+		self.s1.set(r)
+		for i in xrange(0,90,3):
+			self.zdata[i] = r
+		r=randint(0,99)
+		self.s2.set(r)
+		for i in xrange(1,90,3):
+			self.zdata[i] = r
+		r=randint(0,99)
+		self.s3.set(r)
+		for i in xrange(2,90,3):
+			self.zdata[i] = r
+		self.scaleRun()
 	
 	def projectRandom(self):
 		pass
 		
 	def projectRun(self):
 		pass	
+
+	def slided1(self, val):
+		for i in xrange(0,90,3):
+			self.zdata[i] = int(val)
+	def slided2(self, val):
+		for i in xrange(1,90,3):
+			self.zdata[i] = int(val)
+	def slided3(self, val):
+		for i in xrange(2,90,3):
+			self.zdata[i] = int(val)
 
 	def text_clicked(self, event):
 		x, y = event.x, event.y
@@ -144,7 +190,10 @@ class GUI:
 		self.mergedimage.config(image=self.bigimg)
 
 	def scale_clicked(self, event):
-		pass
+		x, y = event.x, event.y
+		figureid=int(6*y/window_height)*3 + int(9*x/window_width)
+		self.bigimg=ImageTk.PhotoImage(Image.fromarray(self.scaleImages[figureid]).resize((finalsize,finalsize)))
+		self.mergedimage.config(image=self.bigimg)
 
 if __name__=='__main__':
 	root = Tk()
