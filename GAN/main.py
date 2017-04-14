@@ -22,10 +22,10 @@ flags.DEFINE_integer("c_dim", 3, "Dimension of image color. [3]")
 flags.DEFINE_string("dataset", "coco", "The name of dataset [celebA, mnist, lsun]")
 flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
 flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
-flags.DEFINE_boolean("is_train", True, "True for training, False for testing [False]")
+flags.DEFINE_boolean("is_train", False, "True for training, False for testing [False]")
 flags.DEFINE_boolean("is_crop", False, "True for training, False for testing [False]")
 flags.DEFINE_boolean("visualize", False, "True for visualizing, False for nothing [False]")
-flags.DEFINE_boolean("is_GUI", False, "True for GUI, False for nothing [True]")
+flags.DEFINE_boolean("is_GUI", True, "True for GUI, False for nothing [True]")
 flags.DEFINE_integer("Lambda", 10, "Gradient penalty lambda hyperparameter")
 flags.DEFINE_integer("d_iters",5, "Number of discriminator training steps per generator training step")
 flags.DEFINE_integer("g_iters",1, "Number of generator training steps per generator training step")
@@ -46,7 +46,7 @@ def main(_):
     config.gpu_options.allow_growth = True
     #config.gpu_options.per_process_gpu_memory_fraction = 0.6
     with tf.Session(config=config) as sess:
-        dcgan = DCGAN(sess,
+    	dcgan0 = DCGAN(sess,
                       image_size=FLAGS.image_size,
                       batch_size=FLAGS.batch_size,
                       output_size=FLAGS.output_size,
@@ -54,22 +54,33 @@ def main(_):
                       embedding_dim=FLAGS.embedding_dim,
                       c_dim=FLAGS.c_dim,
                       Lambda=FLAGS.Lambda,
-                      dataset_name=FLAGS.dataset,
+                      dataset_name='coco',
                       is_crop=FLAGS.is_crop,
                       checkpoint_dir=FLAGS.checkpoint_dir,
                       sample_dir=FLAGS.sample_dir,
                       model_name='dcgan0')
-
-        if FLAGS.is_train:
-            dcgan.train(FLAGS)
-        else:
-            dcgan.load(FLAGS.checkpoint_dir)
-
+        dcgan0.load(FLAGS.checkpoint_dir)
+        	
+        dcgan1=DCGAN(sess,
+                      image_size=FLAGS.image_size,
+                      batch_size=FLAGS.batch_size,
+                      output_size=FLAGS.output_size,
+                      y_dim=None,
+                      embedding_dim=FLAGS.embedding_dim,
+                      c_dim=FLAGS.c_dim,
+                      Lambda=FLAGS.Lambda,
+                      dataset_name='wikiart',
+                      is_crop=FLAGS.is_crop,
+                      checkpoint_dir=FLAGS.checkpoint_dir,
+                      sample_dir=FLAGS.sample_dir,
+                      model_name='dcgan1')
+        dcgan1.load(FLAGS.checkpoint_dir)
+        	
+        '''
         if FLAGS.is_GUI:
             root = Tk()
-            myGUI = GUI(root, dcgan)
+            myGUI = GUI(root, dcgan0,dcgan1)
             root.mainloop()
-
-
+		'''
 if __name__ == '__main__':
     tf.app.run()
