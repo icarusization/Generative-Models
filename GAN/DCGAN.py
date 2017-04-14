@@ -16,8 +16,8 @@ class DCGAN(object):
     def __init__(self, sess, image_size=108, is_crop=True,
                  batch_size=64, sample_size=64, output_size=64,
                  y_dim=128,embedding_dim=1024, z_dim=100, gf_dim=64, df_dim=64,
-                 gfc_dim=1024, dfc_dim=1024, c_dim=3, dataset_name='default',
-                 checkpoint_dir=None, sample_dir=None):
+                c_dim=3, Lambda=10,dataset_name='default',
+                 checkpoint_dir=None, sample_dir=None, model_name=None):
         """
 
         Args:
@@ -26,10 +26,8 @@ class DCGAN(object):
             output_size: (optional) The resolution in pixels of the images. [64]
             y_dim: (optional) Dimension of dim for y. [None]
             z_dim: (optional) Dimension of dim for Z. [100]
-            gf_dim: (optional) Dimension of gen filters in first conv layer. [64]
+            gf_dim: (optional) Dimension of gen filters in last conv layer. [128]
             df_dim: (optional) Dimension of discrim filters in first conv layer. [64]
-            gfc_dim: (optional) Dimension of gen units for for fully connected layer. [1024]
-            dfc_dim: (optional) Dimension of discrim units for fully connected layer. [1024]
             c_dim: (optional) Dimension of image color. For grayscale input, set to 1. [3]
         """
         self.sess = sess
@@ -48,15 +46,16 @@ class DCGAN(object):
         self.gf_dim = gf_dim
         self.df_dim = df_dim
 
-        self.gfc_dim = gfc_dim
-        self.dfc_dim = dfc_dim
-
         self.c_dim = c_dim
+
+        self.Lambda=Lambda
 
         # batch normalization : deals with poor initialization helps gradient flow
         self.d_bn1 = batch_norm(name='d_bn1')
         self.d_bn2 = batch_norm(name='d_bn2')
         self.d_bn3 = batch_norm(name='d_bn3')
+        self.d_bn4 = batch_norm(name='d_bn4')
+        self.d_bn5 = batch_norm(name='d_bn5')
 
         self.g_bn0 = batch_norm(name='g_bn0')
         self.g_bn1 = batch_norm(name='g_bn1')
@@ -65,12 +64,14 @@ class DCGAN(object):
 
         self.dataset_name = dataset_name
         self.checkpoint_dir = checkpoint_dir
-        self.build_model()
+        self.model_name=model_name
+        with tf.variable_scope(self.model_name) as scope:
+        	self.build_model()
 
     def build_model(self):
         if self.y_dim:
-            self.embedding = tf.placeholder(tf.float32, [self.batch_size, self.embedding_dim], name='embedding')
-            self.embedding_fake = tf.placeholder(tf.float32, [self.batch_size, self.embedding_dim], name='embedding')
+            self.embedding = tf.placeholder(tf.float32, [None, self.embedding_dim], name='correct_embedding')
+            self.embedding_fake = tf.placeholder(tf.float32, [self.batch_size, self.embedding_dim], name='wrong_embedding')
 
         self.images = tf.placeholder(tf.float32, [self.batch_size] + [self.output_size, self.output_size, self.c_dim],
                                      name='real_images')
@@ -87,21 +88,22 @@ class DCGAN(object):
             self.D, self.D_logits = self.discriminator(self.images, self.embedding, reuse=False)
             self.D_im, self.D_logits_im = self.discriminator(self.G, self.embedding, reuse=True)
             self.D_la,self.D_logits_la= self.discriminator(self.images, self.embedding_fake, reuse=True)
-
             self.sampler = self.sampler(self.z, self.embedding)
         else:
             self.G = self.generator(self.z)
             self.D, self.D_logits = self.discriminator(self.images)
-            self.D_im, self.D_logits_im = self.discriminator(self.G, reuse=True)
-
-
+            self.D_, self.D_logits_ = self.discriminator(self.G, reuse=True)
             self.sampler = self.sampler(self.z)
 
         self.d_sum = histogram_summary("d", self.D)
-        self.d_im_sum = histogram_summary("d_im", self.D_im)
-        self.d_la_sum = histogram_summary("d_la", self.D_la)
         self.G_sum = image_summary("G", self.G)
+        if self.y_dim:
+            self.d_im_sum = histogram_summary("d_im", self.D_im)
+            self.d_la_sum = histogram_summary("d_la", self.D_la)
+        else:
+            self.d__sum=histogram_summary("d_im", self.D_)
 
+        '''
         def sigmoid_cross_entropy_with_logits(x, y):
             try:
                 return tf.nn.sigmoid_cross_entropy_with_logits(logits=x, labels=y)
@@ -119,21 +121,47 @@ class DCGAN(object):
         else:
             self.d_loss_fake_la = 0
 
-        self.d_loss_real_sum = scalar_summary("d_loss_real", self.d_loss_real)
-        self.d_loss_fake_im_sum = scalar_summary("d_loss_fake_im", self.d_loss_fake_im)
-        self.d_loss_fake_la_sum = scalar_summary("d_loss_fake_la", self.d_loss_fake_la)
-
         self.d_loss_fake=0.5*(self.d_loss_fake_im+self.d_loss_fake_la)
         self.d_loss = self.d_loss_real + self.d_loss_fake
 
         self.g_loss = tf.reduce_mean(                                                                                                                                                                                                                                                                 
             sigmoid_cross_entropy_with_logits(self.D_logits_im, tf.ones_like(self.D_im)))
+		'''
+		
+        self.d_loss_real = tf.reduce_mean(self.D_logits)
+        if self.y_dim:
+            self.d_loss_fake_im = tf.reduce_mean(self.D_logits_im)
+            self.d_loss_fake_la = tf.reduce_mean(self.D_logits_la)
+            self.d_loss_fake = 0.5 * (self.d_loss_fake_im + self.d_loss_fake_la)
+            self.g_loss = -self.d_loss_fake_im
+        else:
+            self.d_loss_fake = tf.reduce_mean(self.D_logits_)
+            self.g_loss = -self.d_loss_fake
+        self.d_loss = -self.d_loss_real + self.d_loss_fake
+        
 
+        #add the gradient penalty term
+        alpha=tf.random_uniform(shape=[self.batch_size,1],minval=0,maxval=1)
+        differences=self.G-self.images
+        interpolates=self.images+(alpha*differences)
+        if self.y_dim:
+            gradients=tf.gradients(self.discriminator(interpolates, self.embedding, reuse=True)[1],[interpolates])[0]
+        else:    
+            gradients=tf.gradients(self.discriminator(interpolates, reuse=True)[1],[interpolates])[0]
+        slopes=tf.sqrt(tf.reduce_sum(tf.square(gradients),reduction_indices=[1,2,3]))
+        gradient_penalty=tf.reduce_mean((slopes-1.)**2)
+        self.d_loss+=self.Lambda*gradient_penalty
+
+        self.d_loss_real_sum = scalar_summary("d_loss_real", self.d_loss_real)
+        self.d_loss_fake_sum=scalar_summary("d_loss_fake", self.d_loss_fake)
         self.g_loss_sum = scalar_summary("g_loss", self.g_loss)
         self.d_loss_sum = scalar_summary("d_loss", self.d_loss)
 
-        t_vars = tf.trainable_variables()
+        if self.y_dim:
+            self.d_loss_fake_im_sum = scalar_summary("d_loss_fake_im", self.d_loss_fake_im)
+            self.d_loss_fake_la_sum = scalar_summary("d_loss_fake_la", self.d_loss_fake_la)
 
+        t_vars = tf.trainable_variables()
 
         self.d_vars = [var for var in t_vars if 'd_' in var.name]
         self.g_vars = [var for var in t_vars if 'g_' in var.name]
@@ -160,9 +188,14 @@ class DCGAN(object):
 
         self.sess.run(init_op)
 
-        self.g_sum = merge_summary([self.z_sum, self.d_im_sum,self.d_la_sum,
+        if self.y_dim:
+        	self.g_sum = merge_summary([self.z_sum, self.d_im_sum,self.d_la_sum,
                                     self.G_sum, self.d_loss_fake_im_sum,
                                     self.d_loss_fake_la_sum,self.g_loss_sum])
+        else:
+        	self.g_sum = merge_summary([self.z_sum, self.d__sum,
+                                    self.G_sum, self.d_loss_fake_sum, self.g_loss_sum])
+        	
         self.d_sum = merge_summary([self.z_sum, self.d_sum, self.d_loss_real_sum, self.d_loss_sum])
         self.writer = SummaryWriter("./logs", self.sess.graph)
 
@@ -174,8 +207,8 @@ class DCGAN(object):
             with open(anno_dir, 'r') as f:
                 captions=json.load(f)
                 annotations=captions['annotations']
-                embedding_dict={x['image_id']:x['caption'] for x in annotations}
-                ids,captions=embedding_dict.keys(),embedding_dict.values()
+                caption_dict={x['image_id']:x['caption'] for x in annotations}
+                ids,captions=caption_dict.keys(),caption_dict.values()
                 embeddings=tools.encode_sentences(embedding_model,X=captions, verbose=False)
                 embedding_dict=dict(zip(ids,embeddings))
             print "Embedding finished."
@@ -187,6 +220,7 @@ class DCGAN(object):
         if self.y_dim:
             sample_ids = [int(x[27:-4]) for x in sample_files]
             sample_labels = [embedding_dict[x] for x in sample_ids]
+            #sample_captions=[caption_dict[x] for x in sample_ids]
 
         if (self.is_grayscale):
             sample_images = np.array(sample).astype(np.float32)[:, :, :, None]
@@ -232,7 +266,6 @@ class DCGAN(object):
 
                 # Update D network
                 for iter in range(config.d_iters):
-                    # Clip all discriminator weights to be between -c and c
                     if self.y_dim:
                         _, summary_str = self.sess.run([d_optim, self.d_sum],
                                                    feed_dict={self.images: batch_images, self.z: batch_z,
@@ -296,10 +329,13 @@ class DCGAN(object):
                 scope.reuse_variables()
 
             h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
-            h1 = lrelu(self.d_bn1(conv2d(h0, self.df_dim * 2, name='d_h1_conv')))
-            h2 = lrelu(self.d_bn2(conv2d(h1, self.df_dim * 4, name='d_h2_conv')))
-            h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim * 8, name='d_h3_conv')))
-
+            #h1 = lrelu(self.d_bn1(conv2d(h0, self.df_dim * 2, name='d_h1_conv')))
+            #h2 = lrelu(self.d_bn2(conv2d(h1, self.df_dim * 4, name='d_h2_conv')))
+            #h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim * 8, name='d_h3_conv')))
+            h1 = lrelu(conv2d(h0, self.df_dim * 2, name='d_h1_conv'))
+            h2 = lrelu(conv2d(h1, self.df_dim * 4, name='d_h2_conv'))
+            h3 = lrelu(conv2d(h2, self.df_dim * 8, name='d_h3_conv'))
+            
             if self.y_dim:
                 # When the spatial dimension is 4*4, replicate the description embedding spatially
                 # perform a depth concatenation
@@ -307,8 +343,9 @@ class DCGAN(object):
                 yb = tf.reshape(y_compressed, [self.batch_size, 1, 1, self.y_dim])
                 h3= conv_cond_concat(h3, yb)
 
+            #h4=lrelu(self.d_bn4(conv2d(h3,self.df_dim*8,k_h=1,k_w=1,d_h=1,d_w=1,name='d_h4_conv')))
+            #h5=self.d_bn5(conv2d(h4,1,k_h=4,k_w=4,d_h=1,d_w=1,name='d_h5_conv'))
             h4=lrelu(conv2d(h3,self.df_dim*8,k_h=1,k_w=1,d_h=1,d_w=1,name='d_h4_conv'))
-
             h5=conv2d(h4,1,k_h=4,k_w=4,d_h=1,d_w=1,name='d_h5_conv')
 
             return tf.nn.sigmoid(h5), h5
@@ -317,6 +354,7 @@ class DCGAN(object):
         with tf.variable_scope("generator") as scope:
             s = self.output_size
             s2, s4, s8, s16 = int(s / 2), int(s / 4), int(s / 8), int(s / 16)
+            #32,16,8,4
 
             if self.y_dim:
                 #concatenate y to the noise vector z
@@ -390,7 +428,7 @@ class DCGAN(object):
 
 
     def save(self, checkpoint_dir, step):
-        model_name = "DCGAN.model"
+        model_name = self.model_name
         model_dir = "%s_%s_%s" % (self.dataset_name, self.batch_size, self.output_size)
         checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
 

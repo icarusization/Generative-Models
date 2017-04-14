@@ -62,9 +62,9 @@ def conv_cond_concat(x, y):
 
 def concat(x,y):
     try:
-        tf.concat(x,y)
+        return tf.concat(x,y)
     except:
-        tf.concat(y,x)
+        return tf.concat(y,x)
 
 def conv2d(input_, output_dim, 
            k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02,
