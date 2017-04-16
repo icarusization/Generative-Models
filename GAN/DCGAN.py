@@ -50,22 +50,22 @@ class DCGAN(object):
 
         self.Lambda=Lambda
 
-        # batch normalization : deals with poor initialization helps gradient flow
-        self.d_bn1 = batch_norm(name='d_bn1')
-        self.d_bn2 = batch_norm(name='d_bn2')
-        self.d_bn3 = batch_norm(name='d_bn3')
-        self.d_bn4 = batch_norm(name='d_bn4')
-        self.d_bn5 = batch_norm(name='d_bn5')
-
-        self.g_bn0 = batch_norm(name='g_bn0')
-        self.g_bn1 = batch_norm(name='g_bn1')
-        self.g_bn2 = batch_norm(name='g_bn2')
-        self.g_bn3 = batch_norm(name='g_bn3')
-
         self.dataset_name = dataset_name
         self.checkpoint_dir = checkpoint_dir
         self.model_name=model_name
         with tf.variable_scope(self.model_name) as scope:
+        	'''
+        	self.d_bn1 = batch_norm(name='d_bn1')
+        	self.d_bn2 = batch_norm(name='d_bn2')
+        	self.d_bn3 = batch_norm(name='d_bn3')
+        	self.d_bn4 = batch_norm(name='d_bn4')
+        	self.d_bn5 = batch_norm(name='d_bn5')
+			'''
+        	self.g_bn0 = batch_norm(name='g_bn0')
+        	self.g_bn1 = batch_norm(name='g_bn1')
+        	self.g_bn2 = batch_norm(name='g_bn2')
+        	self.g_bn3 = batch_norm(name='g_bn3')
+
         	self.build_model()
 
     def build_model(self):
