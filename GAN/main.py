@@ -46,21 +46,6 @@ def main(_):
     config.gpu_options.allow_growth = True
     #config.gpu_options.per_process_gpu_memory_fraction = 0.6
     with tf.Session(config=config) as sess:
-    	dcgan0 = DCGAN(sess,
-                      image_size=FLAGS.image_size,
-                      batch_size=FLAGS.batch_size,
-                      output_size=FLAGS.output_size,
-                      y_dim=FLAGS.y_dim,
-                      embedding_dim=FLAGS.embedding_dim,
-                      c_dim=FLAGS.c_dim,
-                      Lambda=FLAGS.Lambda,
-                      dataset_name='coco',
-                      is_crop=FLAGS.is_crop,
-                      checkpoint_dir=FLAGS.checkpoint_dir,
-                      sample_dir=FLAGS.sample_dir,
-                      model_name='dcgan0')
-        dcgan0.load(FLAGS.checkpoint_dir)
-        	
         dcgan1=DCGAN(sess,
                       image_size=FLAGS.image_size,
                       batch_size=FLAGS.batch_size,
@@ -74,13 +59,32 @@ def main(_):
                       checkpoint_dir=FLAGS.checkpoint_dir,
                       sample_dir=FLAGS.sample_dir,
                       model_name='dcgan1')
+
+        dcgan0 = DCGAN(sess,
+                       image_size=FLAGS.image_size,
+                       batch_size=FLAGS.batch_size,
+                       output_size=FLAGS.output_size,
+                       y_dim=FLAGS.y_dim,
+                       embedding_dim=FLAGS.embedding_dim,
+                       c_dim=FLAGS.c_dim,
+                       Lambda=FLAGS.Lambda,
+                       dataset_name='coco',
+                       is_crop=FLAGS.is_crop,
+                       checkpoint_dir=FLAGS.checkpoint_dir,
+                       sample_dir=FLAGS.sample_dir,
+                       model_name='dcgan0')
+
+        init=tf.global_variables_initializer()
+        sess.run(init)
+        #all_vars=tf.trainable_variables()
+        dcgan0.load(FLAGS.checkpoint_dir)
         dcgan1.load(FLAGS.checkpoint_dir)
-        	
-        '''
+
+
         if FLAGS.is_GUI:
             root = Tk()
             myGUI = GUI(root, dcgan0,dcgan1)
             root.mainloop()
-		'''
+
 if __name__ == '__main__':
     tf.app.run()
