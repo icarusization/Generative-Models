@@ -162,11 +162,11 @@ class DCGAN(object):
             self.d_loss_fake_la_sum = scalar_summary("d_loss_fake_la", self.d_loss_fake_la)
 
         t_vars = tf.trainable_variables()
+        model_vars= [var for var in t_vars if self.model_name in var.name]
+        self.d_vars = [var for var in model_vars if 'd_' in var.name]
+        self.g_vars = [var for var in model_vars if 'g_' in var.name]
 
-        self.d_vars = [var for var in t_vars if 'd_' in var.name]
-        self.g_vars = [var for var in t_vars if 'g_' in var.name]
-
-        self.saver = tf.train.Saver()
+        self.saver = tf.train.Saver(model_vars)
 
     def train(self, config):
         """Train DCGAN"""
