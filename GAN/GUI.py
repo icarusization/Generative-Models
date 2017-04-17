@@ -26,7 +26,7 @@ HEIGHT=zmapwidth*zmapcount
 class GUI:
 	def __init__(self, master, dcgan=None, dcgan2=None):
 		self.embedding_model = tools.load_model()
-		self.dcgan = dcgan2
+		self.dcgan = dcgan
 		self.dcgan2 = dcgan2
 		self.master = master
 
@@ -137,7 +137,7 @@ class GUI:
 	def scaleRun(self):
 		z = (self.zdata-49.5)/49.5
 		self.scaleImagesIcon=[]
-		imgs=np.clip(128*(self.dcgan.display(z=z)+1),0,255)
+		imgs=np.clip(128*(self.dcgan2.display(z=z)+1),0,255)
 		imgs=np.uint8(imgs)
 		self.scaleImages = imgs
 		for i in range(9):
