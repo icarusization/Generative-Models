@@ -156,7 +156,7 @@ class StackGAN(object):
 				self.g_loss_im = -self.d_loss_fake_im
 				self.g_loss=self.g_loss_kl+self.g_loss_im
 			else:
-				self.g_loss=-self.d_loss_fake_im
+				self.g_loss=-self.d_loss_fake
 		else:
 			self.d_loss_fake = tf.reduce_mean(self.D_logits_)
 			self.g_loss = -self.d_loss_fake
