@@ -16,7 +16,7 @@ class StackGAN(object):
 	def __init__(self, sess, image_size=108, is_crop=True,is_CA=False,
 				 batch_size=64, sample_size=64, output_size=64,
 				 y_dim=128,embedding_dim=1024, z_dim=100, gf_dim=64, df_dim=64,
-				c_dim=3, Lambda=10,dataset_name='default',
+				c_dim=3, Lambda=10,Alpha=1,dataset_name='default',
 				 checkpoint_dir=None, sample_dir=None, model_name=None):
 		"""
 
@@ -50,6 +50,7 @@ class StackGAN(object):
 		self.c_dim = c_dim
 
 		self.Lambda=Lambda
+		self.Alpha=Alpha
 
 		self.dataset_name = dataset_name
 		self.checkpoint_dir = checkpoint_dir
@@ -92,7 +93,7 @@ class StackGAN(object):
 		self.learning_rate_g=tf.placeholder(tf.float32,name='learning_rate_g')
 		self.learning_rate_d=tf.placeholder(tf.float32,name='learning_rate_d')
 
-		self.z_sum = histogram_summary("z", self.z)
+		#self.z_sum = histogram_summary("z", self.z)
 
 		if self.y_dim:
 			if self.is_CA:
@@ -109,6 +110,7 @@ class StackGAN(object):
 			self.D_, self.D_logits_ = self.discriminator(self.G, reuse=True)
 			self.sampler = self.sampler(self.z)
 
+		'''
 		self.d_sum = histogram_summary("d", self.D)
 		self.G_sum = image_summary("G", self.G)
 		if self.y_dim:
@@ -116,6 +118,7 @@ class StackGAN(object):
 			self.d_la_sum = histogram_summary("d_la", self.D_la)
 		else:
 			self.d__sum=histogram_summary("d_im", self.D_)
+		'''
 
 		'''
 		def sigmoid_cross_entropy_with_logits(x, y):
@@ -144,9 +147,10 @@ class StackGAN(object):
 		
 		self.d_loss_real = tf.reduce_mean(self.D_logits)
 		if self.y_dim:
-			self.d_loss_fake_im = tf.reduce_mean(self.D_logits_im)
-			self.d_loss_fake_la = tf.reduce_mean(self.D_logits_la)
-			self.d_loss_fake = 0.5 * (self.d_loss_fake_im + self.d_loss_fake_la)
+			self.d_loss_fake = tf.reduce_mean(self.D_logits_im)
+			self.d_loss_la = tf.reduce_mean(self.D_logits_la)
+			self.d_loss_distance = -self.d_loss_real+self.d_loss_fake
+			self.d_loss=self.d_loss_distance+self.Alpha*self.d_loss_la
 			if self.is_CA:
 				self.g_loss_kl=KL_loss(self.G_[0],self.G_[1])
 				self.g_loss_im = -self.d_loss_fake_im
@@ -156,7 +160,8 @@ class StackGAN(object):
 		else:
 			self.d_loss_fake = tf.reduce_mean(self.D_logits_)
 			self.g_loss = -self.d_loss_fake
-		self.d_loss = -self.d_loss_real + self.d_loss_fake
+			self.d_loss_distance = -self.d_loss_real + self.d_loss_fake
+			self.d_loss=self.d_loss_distance
 		
 
 		#add the gradient penalty term
@@ -171,15 +176,13 @@ class StackGAN(object):
 		self.gradient_penalty=tf.reduce_mean((slopes-1.)**2)
 		self.d_loss+=self.Lambda*self.gradient_penalty
 
-		self.d_loss_real_sum = scalar_summary("d_loss_real", self.d_loss_real)
-		self.d_loss_fake_sum=scalar_summary("d_loss_fake", self.d_loss_fake)
+		self.d_loss_distance_sum = scalar_summary("d_loss_distance", self.d_loss_distance)
 		self.gradient_penalty_sum=scalar_summary("gradient_penalty",self.gradient_penalty)
 		self.g_loss_sum = scalar_summary("g_loss", self.g_loss)
-		self.d_loss_sum = scalar_summary("d_loss", self.d_loss)
+		#self.d_loss_sum = scalar_summary("d_loss", self.d_loss)
 
 		if self.y_dim:
-			self.d_loss_fake_im_sum = scalar_summary("d_loss_fake_im", self.d_loss_fake_im)
-			self.d_loss_fake_la_sum = scalar_summary("d_loss_fake_la", self.d_loss_fake_la)
+			self.d_loss_la_sum = scalar_summary("d_loss_la", self.d_loss_la)
 			if self.is_CA:
 				self.g_loss_kl_sum = scalar_summary("g_loss_kl", self.g_loss_kl)
 				self.g_loss_im_sum=scalar_summary("g_loss_im", self.g_loss_im)
@@ -210,23 +213,16 @@ class StackGAN(object):
 
 		if self.y_dim:
 			if config.is_CA:
-			   self.g_sum = merge_summary([self.z_sum, 
-									self.G_sum, self.d_loss_fake_im_sum,
-									self.g_loss_kl_sum,self.g_loss_im_sum,
+			   self.g_sum = merge_summary([self.g_loss_kl_sum,self.g_loss_im_sum,
 									self.g_loss_sum])
 			else:
-				self.g_sum = merge_summary([self.z_sum, 
-									self.G_sum, self.d_loss_fake_im_sum,
-									self.g_loss_sum])
-			self.d_sum = merge_summary([self.z_sum, self.d_sum, self.d_loss_real_sum,
-									self.d_im_sum,self.d_la_sum,
-									self.d_loss_fake_la_sum,self.d_loss_sum,
+				self.g_sum = merge_summary([self.g_loss_sum])
+			self.d_sum = merge_summary([self.d_loss_distance_sum,
+									self.d_loss_la_sum,
 									self.gradient_penalty_sum])
 		else:
-			self.g_sum = merge_summary([self.z_sum, self.d__sum,
-									self.G_sum, self.d_loss_fake_sum, self.g_loss_sum])
-			self.d_sum = merge_summary([self.z_sum, self.d_sum,
-									self.d_loss_real_sum, self.d_loss_sum,
+			self.g_sum = merge_summary([self.g_loss_sum])
+			self.d_sum = merge_summary([self.d_loss_distance_sum,
 									self.gradient_penalty_sum])
 		self.writer = SummaryWriter("./logs", self.sess.graph)
 

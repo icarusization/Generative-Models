@@ -29,6 +29,7 @@ flags.DEFINE_boolean("is_crop", False, "True for training, False for testing [Fa
 #flags.DEFINE_boolean("visualize", False, "True for visualizing, False for nothing [False]")
 #flags.DEFINE_boolean("is_GUI", False, "True for GUI, False for nothing [True]")
 flags.DEFINE_integer("Lambda", 10, "Gradient penalty lambda hyperparameter")
+flags.DEFINE_integer("Alpha",1,"Weight for fake-label loss")
 flags.DEFINE_integer("d_pre_train_step",100,"Number of steps for pre-training the discriminator")
 flags.DEFINE_integer("d_iters",5, "Number of discriminator training steps per generator training step")
 flags.DEFINE_integer("g_iters",1, "Number of generator training steps per generator training step")
@@ -47,7 +48,7 @@ def main(_):
         os.makedirs(FLAGS.sample_dir)
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
-    #config.gpu_options.per_process_gpu_memory_fraction = 0.6
+    config.gpu_options.per_process_gpu_memory_fraction = 0.8
     with tf.Session(config=config) as sess:
         stackgan = StackGAN(sess,
                       image_size=FLAGS.image_size,
@@ -57,12 +58,13 @@ def main(_):
                       embedding_dim=FLAGS.embedding_dim,
                       c_dim=FLAGS.c_dim,
                       Lambda=FLAGS.Lambda,
+                      Alpha=FLAGS.Alpha,
                       dataset_name=FLAGS.dataset,
                       is_crop=FLAGS.is_crop,
                       is_CA=FLAGS.is_CA,
                       checkpoint_dir=FLAGS.checkpoint_dir,
                       sample_dir=FLAGS.sample_dir,
-                      model_name='stackgan/stage1')
+                      model_name='stackgan_stage1')
 
         if FLAGS.is_train:
             stackgan.train(FLAGS)
