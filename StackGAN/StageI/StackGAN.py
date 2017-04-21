@@ -153,7 +153,7 @@ class StackGAN(object):
 			self.d_loss=self.d_loss_distance+self.Alpha*self.d_loss_la
 			if self.is_CA:
 				self.g_loss_kl=KL_loss(self.G_[0],self.G_[1])
-				self.g_loss_im = -self.d_loss_fake_im
+				self.g_loss_im = -self.d_loss_fake
 				self.g_loss=self.g_loss_kl+self.g_loss_im
 			else:
 				self.g_loss=-self.d_loss_fake
