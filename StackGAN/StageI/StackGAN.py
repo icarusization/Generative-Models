@@ -148,7 +148,7 @@ class StackGAN(object):
 		self.d_loss_real = tf.reduce_mean(self.D_logits)
 		if self.y_dim:
 			self.d_loss_fake = tf.reduce_mean(self.D_logits_im)
-			self.d_loss_la = tf.reduce_mean(self.D_logits_la)
+			self.d_loss_la = tf.reduce_mean(self.D_la)
 			self.d_loss_distance = -self.d_loss_real+self.d_loss_fake
 			self.d_loss=self.d_loss_distance+self.Alpha*self.d_loss_la
 			if self.is_CA:
