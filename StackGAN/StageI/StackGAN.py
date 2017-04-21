@@ -15,7 +15,7 @@ import json
 class StackGAN(object):
 	def __init__(self, sess, image_size=108, is_crop=True,is_CA=False,
 				 batch_size=64, sample_size=64, output_size=64,
-				 y_dim=128,embedding_dim=1024, z_dim=100, gf_dim=64, df_dim=64,
+				 y_dim=128,embedding_dim=1024, z_dim=100, gf_dim=128, df_dim=128,
 				c_dim=3, Lambda=10,Alpha=1,dataset_name='default',
 				 checkpoint_dir=None, sample_dir=None, model_name=None):
 		"""
@@ -373,18 +373,15 @@ class StackGAN(object):
 				scope.reuse_variables()
 
 			h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
-			#h1 = lrelu(self.d_bn1(conv2d(h0, self.df_dim * 2, name='d_h1_conv')))
-			#h2 = lrelu(self.d_bn2(conv2d(h1, self.df_dim * 4, name='d_h2_conv')))
-			#h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim * 8, name='d_h3_conv')))
 			h1 = lrelu(conv2d(h0, self.df_dim * 2, k_h=4, k_w=4, name='d_h1_conv'))
-			h2 = lrelu(conv2d(h1, self.df_dim * 4, k_h=4, k_w=4, name='d_h2_conv'))
-			h3 = lrelu(conv2d(h2, self.df_dim * 8, k_h=4, k_w=4, name='d_h3_conv'))
+			h2 = conv2d(h1, self.df_dim * 4, k_h=4, k_w=4, name='d_h2_conv')
+			h3 = conv2d(h2, self.df_dim * 8, k_h=4, k_w=4, name='d_h3_conv')
 			
 			#add residual block 0
 			with tf.variable_scope("d_r0"):
 				r0_h0=lrelu(conv2d(h3,self.df_dim*2,k_h=1,k_w=1,d_h=1,d_w=1,name="h0_conv"))
 				r0_h1=lrelu(conv2d(r0_h0,self.df_dim*2,k_h=3,k_w=3,d_h=1,d_w=1,name="h1_conv"))
-				r0_h2=conv2d(r0_h1,self.gf_dim*8,k_h=3,k_w=3,d_h=1,d_w=1,name="h2_conv")
+				r0_h2=conv2d(r0_h1,self.df_dim*8,k_h=3,k_w=3,d_h=1,d_w=1,name="h2_conv")
 				r0_h3=lrelu(tf.add(r0_h2,h3))
 
 			if self.y_dim:
@@ -392,10 +389,10 @@ class StackGAN(object):
 				# perform a depth concatenation
 				y_compressed = lrelu(linear(y, self.y_dim, 'd_em_to_y'))
 				yb = tf.reshape(y_compressed, [self.batch_size, 1, 1, self.y_dim])
+				#h3 128*9*4*4
 				h3= conv_cond_concat(r0_h3, yb)
 
-			#h4=lrelu(self.d_bn4(conv2d(h3,self.df_dim*8,k_h=1,k_w=1,d_h=1,d_w=1,name='d_h4_conv')))
-			#h5=self.d_bn5(conv2d(h4,1,k_h=4,k_w=4,d_h=1,d_w=1,name='d_h5_conv'))
+			#h4 128*8*4*4
 			h4=lrelu(conv2d(h3,self.df_dim*8,k_h=1,k_w=1,d_h=1,d_w=1,name='d_h4_conv'))
 			h5=conv2d(h4,1,k_h=4,k_w=4,d_h=1,d_w=1,name='d_h5_conv')
 
