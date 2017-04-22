@@ -15,7 +15,7 @@ import json
 class StackGAN(object):
 	def __init__(self, sess, image_size=108, is_crop=True,is_CA=False,
 				 batch_size=64, sample_size=64, output_size=64,
-				 y_dim=128,embedding_dim=1024, z_dim=100, gf_dim=128, df_dim=128,
+				 y_dim=128,embedding_dim=1024, z_dim=100, gf_dim=64, df_dim=64,
 				c_dim=3, Lambda=10,Alpha=1,dataset_name='default',
 				 checkpoint_dir=None, sample_dir=None, model_name=None):
 		"""
@@ -332,20 +332,18 @@ class StackGAN(object):
 
 				#Loss Evaluation
 				if self.y_dim:
-					errD_fake = self.d_loss_fake.eval({self.z: batch_z, self.embedding: batch_labels,
+					errD=self.d_loss.eval({self.z: batch_z, self.embedding: batch_labels,
 													   self.images: batch_images,
 													   self.embedding_fake: batch_labels_fake})
-					errD_real = self.d_loss_real.eval({self.images: batch_images, self.embedding: batch_labels})
 					errG = self.g_loss.eval({self.z: batch_z, self.embedding: batch_labels})
 				else:
-					errD_fake = self.d_loss_fake.eval({self.z: batch_z})
-					errD_real = self.d_loss_real.eval({self.images: batch_images})
+					errD=self.d_loss.eval({self.z: batch_z, self.images: batch_images})
 					errG = self.g_loss.eval({self.z: batch_z})
 
 				counter += 1
 				print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
 					% (epoch, idx, batch_idxs,
-					time.time() - start_time, errD_fake + errD_real, errG))
+					time.time() - start_time, errD, errG))
 
 				if np.mod(counter, 100) == 1:
 					if self.y_dim:
