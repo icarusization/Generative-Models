@@ -370,7 +370,7 @@ class StackGAN(object):
 			if reuse:
 				scope.reuse_variables()
 
-			h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
+			h0 = lrelu(conv2d(image, self.df_dim, k_h=4, k_w=4, name='d_h0_conv'))
 			h1 = lrelu(conv2d(h0, self.df_dim * 2, k_h=4, k_w=4, name='d_h1_conv'))
 			h2 = conv2d(h1, self.df_dim * 4, k_h=4, k_w=4, name='d_h2_conv')
 			h3 = conv2d(h2, self.df_dim * 8, k_h=4, k_w=4, name='d_h3_conv')
