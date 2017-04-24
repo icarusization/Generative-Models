@@ -17,7 +17,7 @@ flags.DEFINE_float("lr_decay_step", 100, "number of epochs when learning rate is
 flags.DEFINE_float("is_CA",False,"True for caption augmentation")
 flags.DEFINE_float("beta1", 0.5, "Momentum term of adam [0.5]")
 flags.DEFINE_integer("train_size", np.inf, "The size of train images [np.inf]")
-flags.DEFINE_integer("batch_size", 64, "The size of batch images [64]")
+flags.DEFINE_integer("batch_size", 32, "The size of batch images [64]")
 flags.DEFINE_integer("image_size", 256, "The size of image to use (will be center cropped) [108]")
 flags.DEFINE_integer("output_size", 256, "The size of the output images to produce [64]")
 flags.DEFINE_integer("lr_size", 64, "The size of the low-resolution images")
@@ -50,7 +50,7 @@ def main(_):
         os.makedirs(FLAGS.sample_dir)
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
-    config.gpu_options.per_process_gpu_memory_fraction = 0.8
+    #config.gpu_options.per_process_gpu_memory_fraction = 0.8
     with tf.Session(config=config) as sess:
         stackgan = StackGAN(sess,
                       image_size=FLAGS.image_size,
