@@ -473,11 +473,12 @@ class StackGAN(object):
 				self.g_sum = merge_summary([self.g_loss_sum])
 			self.d_sum = merge_summary([self.d_loss_distance_sum,
 									self.d_loss_la_sum,
-									self.gradient_penalty_sum])
+									self.gradient_penalty_sum,
+									self.slopes_sum])
 		else:
 			self.g_sum = merge_summary([self.g_loss_sum])
 			self.d_sum = merge_summary([self.d_loss_distance_sum,
-									self.gradient_penalty_sum])
+									self.gradient_penalty_sum,self.slopes_sum])
 		self.writer = SummaryWriter("./logs", self.sess.graph)
 
 		sample_z = np.random.uniform(-1, 1, size=(self.sample_size, self.z_dim))
@@ -499,7 +500,7 @@ class StackGAN(object):
 							is_grayscale=self.is_grayscale) for sample_file in sample_files]
 		
 		if self.y_dim:
-			sample_ids = [int(x[30:-4]) for x in sample_files]
+			sample_ids = [int(x[31:-4]) for x in sample_files]
 			sample_labels = [embedding_dict[x] for x in sample_ids]
 			#sample_captions=[caption_dict[x] for x in sample_ids]
 
@@ -531,11 +532,11 @@ class StackGAN(object):
 								   is_grayscale=self.is_grayscale) for batch_file in batch_files]
 				if self.y_dim:
 					
-					batch_ids = [int(x[30:-4]) for x in batch_files]
+					batch_ids = [int(x[31:-4]) for x in batch_files]
 					batch_labels = [embedding_dict[x] for x in batch_ids]
 
 					batch_files_fake=data[(idx+1) * config.batch_size:(idx + 2) * config.batch_size]
-					batch_ids_fake = [int(x[30:-4]) for x in batch_files_fake]
+					batch_ids_fake = [int(x[31:-4]) for x in batch_files_fake]
 					batch_labels_fake=[embedding_dict[x] for x in batch_ids_fake]
 
 
