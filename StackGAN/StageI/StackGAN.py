@@ -69,13 +69,6 @@ class StackGAN(object):
 		self.g_bn9 = batch_norm(name='g_bn9')
 
 		with tf.variable_scope(self.model_name) as scope:
-			'''
-			self.d_bn1 = batch_norm(name='d_bn1')
-			self.d_bn2 = batch_norm(name='d_bn2')
-			self.d_bn3 = batch_norm(name='d_bn3')
-			self.d_bn4 = batch_norm(name='d_bn4')
-			self.d_bn5 = batch_norm(name='d_bn5')
-			'''
 			self.build_model()
 
 	def build_model(self):
@@ -85,9 +78,6 @@ class StackGAN(object):
 
 		self.images = tf.placeholder(tf.float32, [self.batch_size] + [self.output_size, self.output_size, self.c_dim],
 									 name='real_images')
-		self.sample_images = tf.placeholder(tf.float32,
-											[self.sample_size] + [self.output_size, self.output_size, self.c_dim],
-											name='sample_images')
 		self.z = tf.placeholder(tf.float32, [None, self.z_dim],
 								name='z')
 		self.learning_rate_g=tf.placeholder(tf.float32,name='learning_rate_g')
@@ -148,9 +138,13 @@ class StackGAN(object):
 		self.d_loss_real = tf.reduce_mean(self.D_logits)
 		if self.y_dim:
 			self.d_loss_fake = tf.reduce_mean(self.D_logits_im)
-			self.d_loss_la = tf.reduce_mean(self.D_la)
-			self.d_loss_distance = -self.d_loss_real+self.d_loss_fake
-			self.d_loss=self.d_loss_distance+self.Alpha*self.d_loss_la
+			self.d_loss_la = tf.reduce_mean(self.D_logits_la)
+			if self.Alpha!=0:
+				self.d_loss_distance = -self.d_loss_real+0.5*(self.d_loss_fake+self.Alpha*self.d_loss_la)
+				self.d_loss=self.d_loss_distance
+			else:
+				self.d_loss_distance = -self.d_loss_real+self.d_loss_fake
+				self.d_loss=self.d_loss_distance
 			if self.is_CA:
 				self.g_loss_kl=KL_loss(self.G_[0],self.G_[1])
 				self.g_loss_im = -self.d_loss_fake
@@ -165,7 +159,7 @@ class StackGAN(object):
 		
 
 		#add the gradient penalty term
-		alpha=tf.random_uniform(shape=[self.batch_size,1],minval=0,maxval=1)
+		alpha=tf.random_uniform(shape=[self.batch_size,1,1,1],minval=0,maxval=1)
 		differences=self.G-self.images
 		interpolates=self.images+(alpha*differences)
 		if self.y_dim:
@@ -173,11 +167,13 @@ class StackGAN(object):
 		else:    
 			gradients=tf.gradients(self.discriminator(interpolates, reuse=True)[1],[interpolates])[0]
 		slopes=tf.sqrt(tf.reduce_sum(tf.square(gradients),reduction_indices=[1,2,3]))
+		self.slopes=tf.reduce_mean(slopes)# avg slope value
 		self.gradient_penalty=tf.reduce_mean((slopes-1.)**2)
 		self.d_loss+=self.Lambda*self.gradient_penalty
 
 		self.d_loss_distance_sum = scalar_summary("d_loss_distance", self.d_loss_distance)
 		self.gradient_penalty_sum=scalar_summary("gradient_penalty",self.gradient_penalty)
+		self.slopes_sum=scalar_summary("slopes",self.slopes)
 		self.g_loss_sum = scalar_summary("g_loss", self.g_loss)
 		#self.d_loss_sum = scalar_summary("d_loss", self.d_loss)
 
@@ -218,15 +214,16 @@ class StackGAN(object):
 			else:
 				self.g_sum = merge_summary([self.g_loss_sum])
 			self.d_sum = merge_summary([self.d_loss_distance_sum,
-									self.d_loss_la_sum,
+									self.d_loss_la_sum,self.slopes_sum,
 									self.gradient_penalty_sum])
 		else:
 			self.g_sum = merge_summary([self.g_loss_sum])
-			self.d_sum = merge_summary([self.d_loss_distance_sum,
+			self.d_sum = merge_summary([self.d_loss_distance_sum,self.slopes_sum,
 									self.gradient_penalty_sum])
 		self.writer = SummaryWriter("./logs", self.sess.graph)
 
-		sample_z = np.random.uniform(-1, 1, size=(self.sample_size, self.z_dim))
+		sample_z = np.random.uniform(-1, 1, size=(self.sample_size, self.z_dim))\
+								.astype(np.float32)
 
 		if self.y_dim:
 			anno_dir = os.path.join("./data", config.dataset, config.anno)
@@ -371,8 +368,10 @@ class StackGAN(object):
 				scope.reuse_variables()
 
 			h0 = lrelu(conv2d(image, self.df_dim, k_h=4, k_w=4, name='d_h0_conv'))
+			#h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
 			h1 = lrelu(conv2d(h0, self.df_dim * 2, k_h=4, k_w=4, name='d_h1_conv'))
-			h2 = conv2d(h1, self.df_dim * 4, k_h=4, k_w=4, name='d_h2_conv')
+			h2 = lrelu(conv2d(h1, self.df_dim * 4, k_h=4, k_w=4, name='d_h2_conv'))
+			#h2 = conv2d(h1, self.df_dim * 4, k_h=4, k_w=4, name='d_h2_conv')
 			h3 = conv2d(h2, self.df_dim * 8, k_h=4, k_w=4, name='d_h3_conv')
 			
 			#add residual block 0
@@ -391,7 +390,7 @@ class StackGAN(object):
 				h3= conv_cond_concat(r0_h3, yb)
 
 			#h4 128*8*4*4
-			h4=lrelu(conv2d(h3,self.df_dim*8,k_h=1,k_w=1,d_h=1,d_w=1,name='d_h4_conv'))
+			h4=conv2d(h3,self.df_dim*8,k_h=1,k_w=1,d_h=1,d_w=1,name='d_h4_conv')
 			h5=conv2d(h4,1,k_h=4,k_w=4,d_h=1,d_w=1,name='d_h5_conv')
 
 			return tf.nn.sigmoid(h5), h5
