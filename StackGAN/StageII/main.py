@@ -32,7 +32,7 @@ flags.DEFINE_boolean("is_crop", False, "True for training, False for testing [Fa
 #flags.DEFINE_boolean("visualize", False, "True for visualizing, False for nothing [False]")
 #flags.DEFINE_boolean("is_GUI", False, "True for GUI, False for nothing [True]")
 flags.DEFINE_integer("Lambda", 10, "Gradient penalty lambda hyperparameter")
-flags.DEFINE_integer("Alpha",1,"Weight for fake-label loss")
+flags.DEFINE_float("Alpha",1.0,"Weight for fake-label loss")
 flags.DEFINE_integer("d_pre_train_step",200,"Number of steps for pre-training the discriminator")
 flags.DEFINE_integer("d_iters",5, "Number of discriminator training steps per generator training step")
 flags.DEFINE_integer("g_iters",1, "Number of generator training steps per generator training step")
@@ -68,7 +68,7 @@ def main(_):
                       checkpoint_dir=FLAGS.checkpoint_dir,
                       sample_dir=FLAGS.sample_dir,
                       model_lr_dir=FLAGS.model_lr_dir,
-                      model_name='stackgan_stage1')
+                      model_name='stackgan')
         #stackgan.load_stage1()
 
         

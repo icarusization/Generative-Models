@@ -13,7 +13,7 @@ from embedding import tools
 import json
 
 class StackGAN(object):
-	def __init__(self, sess, image_size=108, is_crop=True,is_CA=False,
+	def __init__(self, sess, image_size=108, is_crop=True,is_CA=False,is_Wasserstein=True,
 				 batch_size=64, sample_size=64, output_size=64,
 				 y_dim=128,embedding_dim=1024, z_dim=100, gf_dim=64, df_dim=64,
 				c_dim=3, Lambda=10,Alpha=1,dataset_name='default',
@@ -33,6 +33,7 @@ class StackGAN(object):
 		self.sess = sess
 		self.is_crop = is_crop
 		self.is_CA=is_CA
+		self.is_Wasserstein=is_Wasserstein
 		self.is_grayscale = (c_dim == 1)
 		self.batch_size = batch_size
 		self.image_size = image_size
@@ -68,6 +69,16 @@ class StackGAN(object):
 		self.g_bn8 = batch_norm(name='g_bn8')
 		self.g_bn9 = batch_norm(name='g_bn9')
 
+		#discriminator batch norm:
+		if not self.is_Wasserstein:
+			self.d_bn0 = batch_norm(name='d_bn0')
+			self.d_bn1 = batch_norm(name='d_bn1')
+			self.d_bn2 = batch_norm(name='d_bn2')
+			self.d_bn3 = batch_norm(name='d_bn3')
+			self.d_bn4 = batch_norm(name='d_bn4')
+			self.d_bn5 = batch_norm(name='d_bn5')
+			self.d_bn6 = batch_norm(name='d_bn6')
+
 		with tf.variable_scope(self.model_name) as scope:
 			self.build_model()
 
@@ -100,88 +111,98 @@ class StackGAN(object):
 			self.D_, self.D_logits_ = self.discriminator(self.G, reuse=True)
 			self.sampler = self.sampler(self.z)
 
-		'''
-		self.d_sum = histogram_summary("d", self.D)
-		self.G_sum = image_summary("G", self.G)
-		if self.y_dim:
-			self.d_im_sum = histogram_summary("d_im", self.D_im)
-			self.d_la_sum = histogram_summary("d_la", self.D_la)
-		else:
-			self.d__sum=histogram_summary("d_im", self.D_)
-		'''
-
-		'''
-		def sigmoid_cross_entropy_with_logits(x, y):
-			try:
-				return tf.nn.sigmoid_cross_entropy_with_logits(logits=x, labels=y)
-			except:
-				return tf.nn.sigmoid_cross_entropy_with_logits(logits=x, targets=y)
-
-		self.d_loss_real = tf.reduce_mean(
-			sigmoid_cross_entropy_with_logits(self.D_logits, tf.ones_like(self.D)))
-		self.d_loss_fake_im = tf.reduce_mean(
-			sigmoid_cross_entropy_with_logits(self.D_logits_im, tf.zeros_like(self.D_im)))
-
-		if self.y_dim:
-			self.d_loss_fake_la = tf.reduce_mean(
-				sigmoid_cross_entropy_with_logits(self.D_logits_la, tf.zeros_like(self.D_la)))
-		else:
-			self.d_loss_fake_la = 0
-
-		self.d_loss_fake=0.5*(self.d_loss_fake_im+self.d_loss_fake_la)
-		self.d_loss = self.d_loss_real + self.d_loss_fake
-
-		self.g_loss = tf.reduce_mean(                                                                                                                                                                                                                                                                 
-			sigmoid_cross_entropy_with_logits(self.D_logits_im, tf.ones_like(self.D_im)))
-		'''
-		
-		self.d_loss_real = tf.reduce_mean(self.D_logits)
-		if self.y_dim:
-			self.d_loss_fake = tf.reduce_mean(self.D_logits_im)
-			self.d_loss_la = tf.reduce_mean(self.D_logits_la)
-			if self.Alpha!=0:
-				self.d_loss_distance = -self.d_loss_real+0.5*(self.d_loss_fake+self.Alpha*self.d_loss_la)
-				self.d_loss=self.d_loss_distance
+		if self.is_Wasserstein:
+			self.d_loss_real = tf.reduce_mean(self.D_logits)
+			if self.y_dim:
+				self.d_loss_fake = tf.reduce_mean(self.D_logits_im)
+				self.d_loss_la = tf.reduce_mean(self.D_logits_la)
+				if self.Alpha!=0:
+					self.d_loss_distance = -self.d_loss_real+(self.d_loss_fake+self.Alpha*self.d_loss_la)/(1.0+self.Alpha)
+					self.d_loss=self.d_loss_distance
+				else:
+					self.d_loss_distance = -self.d_loss_real+self.d_loss_fake
+					self.d_loss=self.d_loss_distance
+				if self.is_CA:
+					self.g_loss_kl=KL_loss(self.G_[0],self.G_[1])
+					self.g_loss_im = -self.d_loss_fake
+					self.g_loss=self.g_loss_kl+self.g_loss_im
+				else:
+					self.g_loss=-self.d_loss_fake
 			else:
-				self.d_loss_distance = -self.d_loss_real+self.d_loss_fake
+				self.d_loss_fake = tf.reduce_mean(self.D_logits_)
+				self.g_loss = -self.d_loss_fake
+				self.d_loss_distance = -self.d_loss_real + self.d_loss_fake
 				self.d_loss=self.d_loss_distance
+			
+
+			#add the gradient penalty term
+			alpha=tf.random_uniform(shape=[self.batch_size,1,1,1],minval=0,maxval=1)
+			differences=self.G-self.images
+			interpolates=self.images+(alpha*differences)
+			if self.y_dim:
+				gradients=tf.gradients(self.discriminator(interpolates, self.embedding, reuse=True)[1],[interpolates])[0]
+			else:    
+				gradients=tf.gradients(self.discriminator(interpolates, reuse=True)[1],[interpolates])[0]
+			slopes=tf.sqrt(tf.reduce_sum(tf.square(gradients),reduction_indices=[1,2,3]))
+			self.slopes=tf.reduce_mean(slopes)# avg slope value
+			self.gradient_penalty=tf.reduce_mean((slopes-1.)**2)
+			self.d_loss+=self.Lambda*self.gradient_penalty
+
+			self.d_loss_distance_sum = scalar_summary("d_loss_distance", self.d_loss_distance)
+			self.gradient_penalty_sum=scalar_summary("gradient_penalty",self.gradient_penalty)
+			self.slopes_sum=scalar_summary("slopes",self.slopes)
+			self.g_loss_sum = scalar_summary("g_loss", self.g_loss)
+			#self.d_loss_sum = scalar_summary("d_loss", self.d_loss)
+
+			if self.y_dim:
+				self.d_loss_la_sum = scalar_summary("d_loss_la", self.d_loss_la)
+				if self.is_CA:
+					self.g_loss_kl_sum = scalar_summary("g_loss_kl", self.g_loss_kl)
+					self.g_loss_im_sum=scalar_summary("g_loss_im", self.g_loss_im)
+
+		else:
+			def sigmoid_cross_entropy_with_logits(x, y):
+				try:
+					return tf.nn.sigmoid_cross_entropy_with_logits(logits=x, labels=y)
+				except:
+					return tf.nn.sigmoid_cross_entropy_with_logits(logits=x, targets=y)
+
+			self.d_loss_real = tf.reduce_mean(
+				sigmoid_cross_entropy_with_logits(self.D_logits, tf.ones_like(self.D)))
+			self.d_loss_fake_im = tf.reduce_mean(
+				sigmoid_cross_entropy_with_logits(self.D_logits_im, tf.zeros_like(self.D_im)))
+
+			if self.y_dim:
+				self.d_loss_fake_la = tf.reduce_mean(
+					sigmoid_cross_entropy_with_logits(self.D_logits_la, tf.zeros_like(self.D_la)))
+			else:
+				self.d_loss_fake_la = 0
+
+			self.d_loss_fake=(self.d_loss_fake_im+self.Alpha*self.d_loss_fake_la)/(1.0+self.Alpha)
+			self.d_loss = self.d_loss_real + self.d_loss_fake
+
+			self.g_loss = tf.reduce_mean(                                                                                                                                                                                                                                                                 
+				sigmoid_cross_entropy_with_logits(self.D_logits_im, tf.ones_like(self.D_im)))
+
 			if self.is_CA:
 				self.g_loss_kl=KL_loss(self.G_[0],self.G_[1])
-				self.g_loss_im = -self.d_loss_fake
+				self.g_loss_im = tf.reduce_mean(                                                                                                                                                                                                                                                                 
+					sigmoid_cross_entropy_with_logits(self.D_logits_im, tf.ones_like(self.D_im)))
 				self.g_loss=self.g_loss_kl+self.g_loss_im
 			else:
-				self.g_loss=-self.d_loss_fake
-		else:
-			self.d_loss_fake = tf.reduce_mean(self.D_logits_)
-			self.g_loss = -self.d_loss_fake
-			self.d_loss_distance = -self.d_loss_real + self.d_loss_fake
-			self.d_loss=self.d_loss_distance
-		
+				self.g_loss = tf.reduce_mean(                                                                                                                                                                                                                                                                 
+				sigmoid_cross_entropy_with_logits(self.D_logits_im, tf.ones_like(self.D_im)))
 
-		#add the gradient penalty term
-		alpha=tf.random_uniform(shape=[self.batch_size,1,1,1],minval=0,maxval=1)
-		differences=self.G-self.images
-		interpolates=self.images+(alpha*differences)
-		if self.y_dim:
-			gradients=tf.gradients(self.discriminator(interpolates, self.embedding, reuse=True)[1],[interpolates])[0]
-		else:    
-			gradients=tf.gradients(self.discriminator(interpolates, reuse=True)[1],[interpolates])[0]
-		slopes=tf.sqrt(tf.reduce_sum(tf.square(gradients),reduction_indices=[1,2,3]))
-		self.slopes=tf.reduce_mean(slopes)# avg slope value
-		self.gradient_penalty=tf.reduce_mean((slopes-1.)**2)
-		self.d_loss+=self.Lambda*self.gradient_penalty
+			self.d_loss_real_sum = scalar_summary("d_loss_real", self.d_loss_real)
+			self.d_loss_im_sum=scalar_summary("d_loss_im",self.d_loss_fake_im)
+			#self.d_loss_fake_la_sum=scalar_summary("d_loss_fake_la",self.d_loss_fake_la)
+			self.g_loss_sum = scalar_summary("g_loss", self.g_loss)
 
-		self.d_loss_distance_sum = scalar_summary("d_loss_distance", self.d_loss_distance)
-		self.gradient_penalty_sum=scalar_summary("gradient_penalty",self.gradient_penalty)
-		self.slopes_sum=scalar_summary("slopes",self.slopes)
-		self.g_loss_sum = scalar_summary("g_loss", self.g_loss)
-		#self.d_loss_sum = scalar_summary("d_loss", self.d_loss)
-
-		if self.y_dim:
-			self.d_loss_la_sum = scalar_summary("d_loss_la", self.d_loss_la)
-			if self.is_CA:
-				self.g_loss_kl_sum = scalar_summary("g_loss_kl", self.g_loss_kl)
-				self.g_loss_im_sum=scalar_summary("g_loss_im", self.g_loss_im)
+			if self.y_dim:
+				self.d_loss_la_sum = scalar_summary("d_loss_la", self.d_loss_fake_la)
+				if self.is_CA:
+					self.g_loss_kl_sum = scalar_summary("g_loss_kl", self.g_loss_kl)
+					self.g_loss_im_sum=scalar_summary("g_loss_im", self.g_loss_im)
 
 		t_vars = tf.trainable_variables()
 		model_vars= [var for var in t_vars if self.model_name in var.name]
@@ -213,13 +234,22 @@ class StackGAN(object):
 									self.g_loss_sum])
 			else:
 				self.g_sum = merge_summary([self.g_loss_sum])
-			self.d_sum = merge_summary([self.d_loss_distance_sum,
+
+			if self.is_Wasserstein:
+				self.d_sum = merge_summary([self.d_loss_distance_sum,
 									self.d_loss_la_sum,self.slopes_sum,
 									self.gradient_penalty_sum])
+			else:
+				self.d_sum = merge_summary([self.d_loss_real_sum,
+									self.d_loss_la_sum,self.d_loss_im_sum])
 		else:
 			self.g_sum = merge_summary([self.g_loss_sum])
-			self.d_sum = merge_summary([self.d_loss_distance_sum,self.slopes_sum,
-									self.gradient_penalty_sum])
+			if self.is_Wasserstein:
+				self.d_sum = merge_summary([self.d_loss_distance_sum,self.slopes_sum,
+										self.gradient_penalty_sum])
+			else:
+				self.d_sum = merge_summary([self.d_loss_im_sum])
+
 		self.writer = SummaryWriter("./logs", self.sess.graph)
 
 		sample_z = np.random.uniform(-1, 1, size=(self.sample_size, self.z_dim))\
@@ -366,34 +396,62 @@ class StackGAN(object):
 		with tf.variable_scope("discriminator") as scope:
 			if reuse:
 				scope.reuse_variables()
+			if self.is_Wasserstein:
+				h0 = lrelu(conv2d(image, self.df_dim, k_h=4, k_w=4, name='d_h0_conv'))
+				#h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
+				h1 = lrelu(conv2d(h0, self.df_dim * 2, k_h=4, k_w=4, name='d_h1_conv'))
+				h2 = lrelu(conv2d(h1, self.df_dim * 4, k_h=4, k_w=4, name='d_h2_conv'))
+				#h2 = conv2d(h1, self.df_dim * 4, k_h=4, k_w=4, name='d_h2_conv')
+				h3 = conv2d(h2, self.df_dim * 8, k_h=4, k_w=4, name='d_h3_conv')
+				
+				#add residual block 0
+				with tf.variable_scope("d_r0"):
+					r0_h0=lrelu(conv2d(h3,self.df_dim*2,k_h=1,k_w=1,d_h=1,d_w=1,name="h0_conv"))
+					r0_h1=lrelu(conv2d(r0_h0,self.df_dim*2,k_h=3,k_w=3,d_h=1,d_w=1,name="h1_conv"))
+					r0_h2=conv2d(r0_h1,self.df_dim*8,k_h=3,k_w=3,d_h=1,d_w=1,name="h2_conv")
+					r0_h3=lrelu(tf.add(r0_h2,h3))
 
-			h0 = lrelu(conv2d(image, self.df_dim, k_h=4, k_w=4, name='d_h0_conv'))
-			#h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
-			h1 = lrelu(conv2d(h0, self.df_dim * 2, k_h=4, k_w=4, name='d_h1_conv'))
-			h2 = lrelu(conv2d(h1, self.df_dim * 4, k_h=4, k_w=4, name='d_h2_conv'))
-			#h2 = conv2d(h1, self.df_dim * 4, k_h=4, k_w=4, name='d_h2_conv')
-			h3 = conv2d(h2, self.df_dim * 8, k_h=4, k_w=4, name='d_h3_conv')
-			
-			#add residual block 0
-			with tf.variable_scope("d_r0"):
-				r0_h0=lrelu(conv2d(h3,self.df_dim*2,k_h=1,k_w=1,d_h=1,d_w=1,name="h0_conv"))
-				r0_h1=lrelu(conv2d(r0_h0,self.df_dim*2,k_h=3,k_w=3,d_h=1,d_w=1,name="h1_conv"))
-				r0_h2=conv2d(r0_h1,self.df_dim*8,k_h=3,k_w=3,d_h=1,d_w=1,name="h2_conv")
-				r0_h3=lrelu(tf.add(r0_h2,h3))
+				if self.y_dim:
+					# When the spatial dimension is 4*4, replicate the description embedding spatially
+					# perform a depth concatenation
+					y_compressed = lrelu(linear(y, self.y_dim, 'd_em_to_y'))
+					yb = tf.reshape(y_compressed, [self.batch_size, 1, 1, self.y_dim])
+					#h3 128*9*4*4
+					h3= conv_cond_concat(r0_h3, yb)
 
-			if self.y_dim:
-				# When the spatial dimension is 4*4, replicate the description embedding spatially
-				# perform a depth concatenation
-				y_compressed = lrelu(linear(y, self.y_dim, 'd_em_to_y'))
-				yb = tf.reshape(y_compressed, [self.batch_size, 1, 1, self.y_dim])
-				#h3 128*9*4*4
-				h3= conv_cond_concat(r0_h3, yb)
+				#h4 128*8*4*4
+				h4=lrelu(conv2d(h3,self.df_dim*8,k_h=1,k_w=1,d_h=1,d_w=1,name='d_h4_conv'))
+				h5=conv2d(h4,1,k_h=4,k_w=4,d_h=1,d_w=1,name='d_h5_conv')
 
-			#h4 128*8*4*4
-			h4=conv2d(h3,self.df_dim*8,k_h=1,k_w=1,d_h=1,d_w=1,name='d_h4_conv')
-			h5=conv2d(h4,1,k_h=4,k_w=4,d_h=1,d_w=1,name='d_h5_conv')
+				return tf.nn.sigmoid(h5), h5
+			else:
+				h0 = lrelu(conv2d(image, self.df_dim, k_h=4, k_w=4, name='d_h0_conv'))
+				#h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
+				h1 = lrelu(self.d_bn0(conv2d(h0, self.df_dim * 2, k_h=4, k_w=4, name='d_h1_conv')))
+				h2 = lrelu(self.d_bn1(conv2d(h1, self.df_dim * 4, k_h=4, k_w=4, name='d_h2_conv')))
+				#h2 = conv2d(h1, self.df_dim * 4, k_h=4, k_w=4, name='d_h2_conv')
+				h3 = self.d_bn2(conv2d(h2, self.df_dim * 8, k_h=4, k_w=4, name='d_h3_conv'))
+				
+				#add residual block 0
+				with tf.variable_scope("d_r0"):
+					r0_h0=lrelu(self.d_bn3(conv2d(h3,self.df_dim*2,k_h=1,k_w=1,d_h=1,d_w=1,name="h0_conv")))
+					r0_h1=lrelu(self.d_bn4(conv2d(r0_h0,self.df_dim*2,k_h=3,k_w=3,d_h=1,d_w=1,name="h1_conv")))
+					r0_h2=self.d_bn5(conv2d(r0_h1,self.df_dim*8,k_h=3,k_w=3,d_h=1,d_w=1,name="h2_conv"))
+					r0_h3=lrelu(tf.add(r0_h2,h3))
 
-			return tf.nn.sigmoid(h5), h5
+				if self.y_dim:
+					# When the spatial dimension is 4*4, replicate the description embedding spatially
+					# perform a depth concatenation
+					y_compressed = lrelu(linear(y, self.y_dim, 'd_em_to_y'))
+					yb = tf.reshape(y_compressed, [self.batch_size, 1, 1, self.y_dim])
+					#h3 128*9*4*4
+					h3= conv_cond_concat(r0_h3, yb)
+
+				#h4 128*8*4*4
+				h4=lrelu(self.d_bn6(conv2d(h3,self.df_dim*8,k_h=1,k_w=1,d_h=1,d_w=1,name='d_h4_conv')))
+				h5=conv2d(h4,1,k_h=4,k_w=4,d_h=1,d_w=1,name='d_h5_conv')
+
+				return tf.nn.sigmoid(h5), h5
 
 	def generator(self, z, y=None):
 		with tf.variable_scope("generator") as scope:

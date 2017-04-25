@@ -190,9 +190,9 @@ class StackGAN(object):
 		#self.z_sum = histogram_summary("z", self.z)
 		self.images_lr=self.generator_lr(self.z, self.embedding)
 		if self.is_CA:
-			self.G,self.G_ = self.fcgenerator_hr(self.images_lr, self.embedding)
+			self.G,self.G_ = self.generator_hr(self.images_lr, self.embedding)
 		else:
-			self.G= self.fcgenerator_hr(self.images_lr, self.embedding)
+			self.G= self.generator_hr(self.images_lr, self.embedding)
 		self.D, self.D_logits = self.discriminator_hr(self.images, self.embedding, reuse=False)
 		self.D_im, self.D_logits_im = self.discriminator_hr(self.G, self.embedding, reuse=True)
 		self.D_la,self.D_logits_la= self.discriminator_hr(self.images, self.embedding_fake, reuse=True)
@@ -282,14 +282,15 @@ class StackGAN(object):
 									k_h=3,k_w=3,d_h=1,d_w=1,name="g_hr_joint_conv"))
 				# -->16 * 16 * 512
 				joint_img_text=tf.nn.relu(joint_img_text)
-
+				r3=joint_img_text
+			'''
 			#residual block*4
 			with tf.variable_scope("residuals") as scope_2:
 				r0=self.residual_block(joint_img_text,name="g_hr_r0")
 				r1=self.residual_block(r0,name="g_hr_r1")
 				r2=self.residual_block(r1,name="g_hr_r2")
 				r3=self.residual_block(r2,name="g_hr_r3")
-			
+			'''
 			#upsampling
 			s = self.output_size#256
 			s2, s4, s8 = int(s / 2), int(s / 4), int(s/8) #128,64,32
@@ -411,28 +412,38 @@ class StackGAN(object):
 
 			#encode images
 			with tf.variable_scope("down_sampling") as scope_0:
-				image_lr_flatten=tf.reshape(image_lr,[self.batch_size,-1])
 				#down_h0 64*64
-				down_h0=linear(image_lr_flatten,self.gf_dim*8,scope="g_hr_down_h0")
+				down_h0=conv2d(image_lr,self.gf_dim,k_h=3,k_w=3,d_h=1,d_w=1,name="g_hr_down_h0")
 				down_h0=tf.nn.relu(down_h0)
 				#down_h1 32*32
-				down_h1=linear(down_h0,self.gf_dim*8,scope="g_hr_down_h1")
+				down_h1=self.g_hr_bn0(conv2d(down_h0,self.gf_dim*2,k_h=4,k_w=4,name="g_hr_down_h1"))
 				down_h1=tf.nn.relu(down_h1)
 				#down_h2 16*16
-				down_h2=linear(down_h1,self.gf_dim*8,scope="g_hr_down_h2")
+				down_h2=self.g_hr_bn1(conv2d(down_h1,self.gf_dim*4,k_h=4,k_w=4,name="g_hr_down_h2"))
 				down_h2=tf.nn.relu(down_h2)
 
 			#joint_img_text
 			with tf.variable_scope("joint_img_text") as scope_1:
-				y_compressed=tf.nn.relu(linear(y,self.y_dim,"g_hr_em_to_y_mean"))
-				#yb = tf.reshape(y_compressed, [self.batch_size, 1, 1, self.y_dim])
-				#joint_img_text= conv_cond_concat(down_h2, yb)
-				# -->1batch_size * (128+2048)
-				joint_img_text=concat([y_compressed,down_h2],1)
+				if self.is_CA:
+					#condition augmentation
+					mean=lrelu(linear(y,self.y_dim,"g_hr_em_to_y_mean"))
+					log_std=tf.nn.relu(linear(y,self.y_dim,"g_hr_em_to_y_variance"))
+					epsilon = tf.truncated_normal(tf.shape(mean))
+					std = tf.exp(log_std)
+					y_augmented=mean+std*epsilon
+					yb = tf.reshape(y_augmented, [self.batch_size, 1, 1, self.y_dim])
+					joint_img_text= conv_cond_concat(down_h2, yb)
+					# -->16 * 16 * (128+512)
+				else:
+					y_compressed=lrelu(linear(y,self.y_dim,"g_hr_em_to_y_mean"))
+					yb = tf.reshape(y_compressed, [self.batch_size, 1, 1, self.y_dim])
+					joint_img_text= conv_cond_concat(down_h2, yb)
+					# -->16 * 16 * (128+512)
+				joint_img_text=self.g_hr_bn2(conv2d(joint_img_text,self.gf_dim*4,
+									k_h=3,k_w=3,d_h=1,d_w=1,name="g_hr_joint_conv"))
 				# -->16 * 16 * 512
-				#joint_img_text=tf.nn.relu(joint_img_text)
+				joint_img_text=tf.nn.relu(joint_img_text)
 				r3=joint_img_text
-
 			'''
 			#residual block*4
 			with tf.variable_scope("residuals") as scope_2:
@@ -441,21 +452,28 @@ class StackGAN(object):
 				r2=self.residual_block(r1,name="g_hr_r2")
 				r3=self.residual_block(r2,name="g_hr_r3")
 			'''
-
 			#upsampling
+			s = self.output_size#256
+			s2, s4, s8 = int(s / 2), int(s / 4), int(s/8) #128,64,32
 			with tf.variable_scope("upsampling") as scope_3:	
-				up_h0=linear(r3,self.gf_dim*8,scope='g_hr_up_h0')
+				up_h0=self.g_hr_bn3(deconv2d(r3,[self.batch_size, s8, s8, self.gf_dim * 2], 
+										k_h=3,k_w=3,name='g_hr_up_h0'))
 				up_h0=tf.nn.relu(up_h0)
-				up_h1=linear(up_h0,self.gf_dim*8,scope='g_hr_up_h1')
+				up_h1=self.g_hr_bn4(deconv2d(up_h0,[self.batch_size, s4, s4, self.gf_dim], 
+										k_h=3,k_w=3,name='g_hr_up_h1'))
 				up_h1=tf.nn.relu(up_h1)
-				up_h2=linear(up_h1,self.gf_dim*8,scope='g_hr_up_h2')
+				up_h2=self.g_hr_bn5(deconv2d(up_h1,[self.batch_size, s2, s2, self.gf_dim // 2], 
+										k_h=3,k_w=3,name='g_hr_up_h2'))
 				up_h2=tf.nn.relu(up_h2)
-				up_h3=linear(up_h2,self.gf_dim*8,scope='g_hr_up_h3')
+				up_h3=self.g_hr_bn6(deconv2d(up_h2,[self.batch_size, s, s, self.gf_dim // 4], 
+										k_h=3,k_w=3,name='g_hr_up_h3'))
 				up_h3=tf.nn.relu(up_h3)
-				output=linear(up_h3,self.output_size**2*3,scope="g_hr_output")
-				output=tf.reshape(output,[self.batch_size,self.output_size,self.output_size,3])
-			
-			return tf.nn.tanh(output)
+				output=conv2d(up_h3,3,k_h=3,k_w=3,d_h=1, d_w=1,name="g_hr_output")
+
+			if self.is_CA:
+				return tf.nn.tanh(output),[mean,log_std]
+			else:
+				return tf.nn.tanh(output)
 
 	def residual_block(self, x_c_code, name,train=True):
 		with tf.variable_scope(name) as scope:

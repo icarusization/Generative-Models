@@ -26,6 +26,7 @@ flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the 
 flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
 flags.DEFINE_boolean("is_train", True, "True for training, False for testing [False]")
 flags.DEFINE_boolean("is_crop", False, "True for training, False for testing [False]")
+flags.DEFINE_boolean("is_Wasserstein", True, "True for WGAN, False for DCGAN [False]")
 #flags.DEFINE_boolean("visualize", False, "True for visualizing, False for nothing [False]")
 #flags.DEFINE_boolean("is_GUI", False, "True for GUI, False for nothing [True]")
 flags.DEFINE_integer("Lambda", 10, "Gradient penalty lambda hyperparameter")
@@ -48,7 +49,7 @@ def main(_):
         os.makedirs(FLAGS.sample_dir)
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
-    config.gpu_options.per_process_gpu_memory_fraction = 0.8
+    #config.gpu_options.per_process_gpu_memory_fraction = 0.8
     with tf.Session(config=config) as sess:
         stackgan = StackGAN(sess,
                       image_size=FLAGS.image_size,
@@ -62,9 +63,10 @@ def main(_):
                       dataset_name=FLAGS.dataset,
                       is_crop=FLAGS.is_crop,
                       is_CA=FLAGS.is_CA,
+                      is_Wasserstein=FLAGS.is_Wasserstein,
                       checkpoint_dir=FLAGS.checkpoint_dir,
                       sample_dir=FLAGS.sample_dir,
-                      model_name='stackgan_stage1')
+                      model_name='stackgan')
 
         if FLAGS.is_train:
             stackgan.train(FLAGS)
