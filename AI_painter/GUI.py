@@ -6,6 +6,7 @@ from utils import *
 from embedding import tools
 import scipy.misc
 import numpy as np
+import os
 
 
 
@@ -110,11 +111,20 @@ class GUI:
 		self.right.add(self.logolabel, height=bar_height, width=unit_width)
 
 		self.mergedimage = Label(self.right)
-		self.right.add(self.mergedimage, height=unit_height+bar_height, width=unit_width)
+		self.right.add(self.mergedimage, height=unit_height, width=unit_width)
 
-		
+		self.blank3 = Label(self.right)
+		self.right.add(self.blank3, width=unit_width, height=bar_height)
 
+		self.rightlabel = Label(self.right, bg='pink', text="The Chosen Content and Style.")
+		self.right.add(self.rightlabel, height=bar_height)
 
+		self.selectedimages = PanedWindow(self.right, orient = HORIZONTAL)
+		self.right.add(self.selectedimages, width=unit_width, height=unit_height)
+		self.selectedtext = Label(self.right)
+		self.selectedstyle = Label(self.right)
+		self.selectedimages.add(self.selectedtext, height=unit_height/2, width=unit_width/2)
+		self.selectedimages.add(self.selectedstyle, height=unit_height/2, width=unit_width/2)
 
 
 		
@@ -126,8 +136,10 @@ class GUI:
 		self.projectButtons.add(self.projectButtonrun, width=unit_width/2, height=bar_height)
 		self.projectButtons.add(self.projectClose, width=unit_width/2, height=bar_height)
 
-		self.memberinfo = Label(self.right, text="icarusization@Github\n shyay1013@gmail.com\n")
-		self.right.add(self.memberinfo,height=unit_height, width=unit_width)
+
+
+		#self.memberinfo = Label(self.right, text="icarusization@Github\n shyay1013@gmail.com\n")
+		#self.right.add(self.memberinfo,height=unit_height/2 - bar_height, width=unit_width)
 
 		self.intro = Label(self.right, bg='pink', text="By Icarus-A Student Team That\n Deploy the Power of AI in Arts.")
 		self.right.add(self.intro, height=bar_height, width=unit_width)
@@ -190,7 +202,9 @@ class GUI:
 	
 		
 	def projectRun(self):
-		pass	
+		os.system('python neural_style.py --content content.jpg --styles style.jpg --output output.jpg')
+		self.bigimg=ImageTk.PhotoImage(Image.open("output.jpg").resize((finalsize,finalsize)))
+		self.mergedimage.config(image=self.bigimg)	
 
 	def slided1(self, val):
 		for i in xrange(0,90,3):
@@ -205,14 +219,16 @@ class GUI:
 	def text_clicked(self, event):
 		x, y = event.x, event.y
 		figureid=int(3*y/unit_height)*3 + int(3*x/unit_width)
-		self.bigimg=ImageTk.PhotoImage(Image.fromarray(self.textImages[figureid]).resize((finalsize,finalsize)))
-		self.mergedimage.config(image=self.bigimg)
+		scipy.misc.imsave('content.jpg', self.textImages[figureid])
+		self.photoimagetext=ImageTk.PhotoImage(Image.fromarray(self.textImages[figureid]).resize((finalsize,finalsize)))
+		self.selectedtext.config(image=self.photoimagetext)
 
 	def scale_clicked(self, event):
 		x, y = event.x, event.y
 		figureid=int(3*y/unit_height)*3 + int(3*x/unit_width)
-		self.bigimg=ImageTk.PhotoImage(Image.fromarray(self.scaleImages[figureid]).resize((finalsize,finalsize)))
-		self.mergedimage.config(image=self.bigimg)
+		scipy.misc.imsave('style.jpg', self.scaleImages[figureid])
+		self.photoimagestyle=ImageTk.PhotoImage(Image.fromarray(self.scaleImages[figureid]).resize((finalsize,finalsize)))
+		self.selectedstyle.config(image=self.photoimagestyle)
 
 if __name__=='__main__':
 	root = Tk()
