@@ -107,7 +107,7 @@ class GUI:
 		self.scaleImageField.bind("<Button-1>", self.scale_clicked)
 		self.scaleImagesIcon=[]
 		
-		self.logolabel = Label(self.right, bg='pink', text="The AI Painter")
+		self.logolabel = Label(self.right, bg='pink', text="Final Result.")
 		self.right.add(self.logolabel, height=bar_height, width=unit_width)
 
 		self.mergedimage = Label(self.right)

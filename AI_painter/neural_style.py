@@ -10,7 +10,7 @@ from argparse import ArgumentParser
 
 # default arguments
 CONTENT_WEIGHT = 5e0
-STYLE_WEIGHT = 5e2
+STYLE_WEIGHT = 1
 TV_WEIGHT = 1e2
 LEARNING_RATE = 1e1
 STYLE_SCALE = 1.0
