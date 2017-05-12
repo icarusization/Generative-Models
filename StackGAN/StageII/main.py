@@ -29,13 +29,14 @@ flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image s
 flags.DEFINE_string("model_lr_dir", "model", "Directory name for the stage1 model")
 flags.DEFINE_boolean("is_train", True, "True for training, False for testing [False]")
 flags.DEFINE_boolean("is_crop", False, "True for training, False for testing [False]")
+flags.DEFINE_boolean("is_Wasserstein", False, "True for WGAN, False for DCGAN [False]")
 #flags.DEFINE_boolean("visualize", False, "True for visualizing, False for nothing [False]")
 #flags.DEFINE_boolean("is_GUI", False, "True for GUI, False for nothing [True]")
 flags.DEFINE_integer("Lambda", 10, "Gradient penalty lambda hyperparameter")
 flags.DEFINE_float("Alpha",1.0,"Weight for fake-label loss")
-flags.DEFINE_integer("d_pre_train_step",200,"Number of steps for pre-training the discriminator")
-flags.DEFINE_integer("d_iters",5, "Number of discriminator training steps per generator training step")
-flags.DEFINE_integer("g_iters",1, "Number of generator training steps per generator training step")
+flags.DEFINE_integer("d_pre_train_step",0,"Number of steps for pre-training the discriminator")
+flags.DEFINE_integer("d_iters",1, "Number of discriminator training steps per generator training step")
+flags.DEFINE_integer("g_iters",2, "Number of generator training steps per generator training step")
 flags.DEFINE_integer("y_dim",128,"Number of dimensions for y")
 flags.DEFINE_integer("embedding_dim",1024,"Number of dimensions for embedding")
 flags.DEFINE_string("anno", "captions_train2014.json", "The name of Annotation file")
@@ -65,6 +66,7 @@ def main(_):
                       dataset_name=FLAGS.dataset,
                       is_crop=FLAGS.is_crop,
                       is_CA=FLAGS.is_CA,
+                      is_Wasserstein=FLAGS.is_Wasserstein,
                       checkpoint_dir=FLAGS.checkpoint_dir,
                       sample_dir=FLAGS.sample_dir,
                       model_lr_dir=FLAGS.model_lr_dir,
