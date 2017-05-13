@@ -99,6 +99,21 @@ class StackGAN(object):
 		with tf.variable_scope(self.model_name) as scope:
 			self.build_model()
 
+	def load_stage1(self):
+		print(" [*] Reading stage1 model...")
+
+		model_dir = self.model_lr_dir
+
+		ckpt = tf.train.get_checkpoint_state(model_dir)
+		
+		if ckpt and ckpt.model_checkpoint_path:
+			ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
+			self.saver_lr.restore(self.sess, os.path.join(model_dir, ckpt_name))
+			print(" [*] Success to read {}".format(ckpt_name))
+			return True
+		else:
+			print(" [*] Failed to find the stage1 model")
+			return False
 
 	def generator_lr(self, z, y=None):
 		with tf.variable_scope("generator") as scope:
