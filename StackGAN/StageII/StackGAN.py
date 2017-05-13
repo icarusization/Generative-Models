@@ -185,10 +185,11 @@ class StackGAN(object):
 		self.learning_rate_d=tf.placeholder(tf.float32,name='learning_rate_d')
 
 		#self.z_sum = histogram_summary("z", self.z)
-		self.images_lr=self.generator_lr(self.z, self.embedding)
 		if self.is_CA:
+			self.images_lr,_=self.generator_lr(self.z, self.embedding)
 			self.G,self.G_ = self.generator_hr(self.images_lr, self.embedding)
 		else:
+			self.images_lr=self.generator_lr(self.z, self.embedding)
 			self.G= self.generator_hr(self.images_lr, self.embedding)
 		self.D, self.D_logits = self.discriminator_hr(self.images, self.embedding, reuse=False)
 		self.D_im, self.D_logits_im = self.discriminator_hr(self.G, self.embedding, reuse=True)
@@ -445,22 +446,22 @@ class StackGAN(object):
 				h4=lrelu(self.d_hr_bn11(conv2d(joint_img_text,self.df_dim*8,k_h=1,k_w=1,d_h=1,d_w=1,name='d_hr_compress')))
 				h5=conv2d(h4,1,k_h=4,k_w=4,d_h=1,d_w=1,name='d_hr_output')
 				return tf.nn.sigmoid(h5), h5
-		else:
-			with tf.variable_scope("down_sampling") as scope:
-					down_h0 = lrelu(conv2d(image, self.df_dim,k_h=4, k_w=4, name='d_hr_down_h0'))
-					down_h1 = lrelu(conv2d(down_h0, self.df_dim * 2, k_h=4, k_w=4, name='d_hr_down_h1'))
-					down_h2 = lrelu(conv2d(down_h1, self.df_dim * 4, k_h=4, k_w=4, name='d_hr_down_h2'))
-					down_h3 = lrelu(conv2d(down_h2, self.df_dim * 8, k_h=4, k_w=4, name='d_hr_down_h3'))
-					down_h4 = lrelu(conv2d(down_h3, self.df_dim * 16,k_h=4, k_w=4, name='d_hr_down_h4'))
-					down_h5 = lrelu(conv2d(down_h4, self.df_dim * 32, k_h=4, k_w=4, name='d_hr_down_h5'))
-					#size of down_h5: 4*4
-					down_h6 = lrelu(conv2d(down_h5, self.df_dim * 16, k_h=1, k_w=1, 
-									d_h=1, d_w=1,name='d_hr_down_h6'))
-					down_h7 = conv2d(down_h6, self.df_dim * 8, k_h=1, k_w=1,
-									d_h=1, d_w=1, name='d_hr_down_h7')
-					#down_h7 = lrelu(conv2d(down_h6, self.df_dim * 8, k_h=1, k_w=1,
-					#				d_h=1, d_w=1, name='d_hr_down_h7'))
-				
+			else:
+				with tf.variable_scope("down_sampling") as scope:
+						down_h0 = lrelu(conv2d(image, self.df_dim,k_h=4, k_w=4, name='d_hr_down_h0'))
+						down_h1 = lrelu(conv2d(down_h0, self.df_dim * 2, k_h=4, k_w=4, name='d_hr_down_h1'))
+						down_h2 = lrelu(conv2d(down_h1, self.df_dim * 4, k_h=4, k_w=4, name='d_hr_down_h2'))
+						down_h3 = lrelu(conv2d(down_h2, self.df_dim * 8, k_h=4, k_w=4, name='d_hr_down_h3'))
+						down_h4 = lrelu(conv2d(down_h3, self.df_dim * 16,k_h=4, k_w=4, name='d_hr_down_h4'))
+						down_h5 = lrelu(conv2d(down_h4, self.df_dim * 32, k_h=4, k_w=4, name='d_hr_down_h5'))
+						#size of down_h5: 4*4
+						down_h6 = lrelu(conv2d(down_h5, self.df_dim * 16, k_h=1, k_w=1, 
+										d_h=1, d_w=1,name='d_hr_down_h6'))
+						down_h7 = conv2d(down_h6, self.df_dim * 8, k_h=1, k_w=1,
+										d_h=1, d_w=1, name='d_hr_down_h7')
+						#down_h7 = lrelu(conv2d(down_h6, self.df_dim * 8, k_h=1, k_w=1,
+						#				d_h=1, d_w=1, name='d_hr_down_h7'))
+					
 				#residual_block
 				with tf.variable_scope("residual"):
 					r0=lrelu(conv2d(down_h7,self.df_dim*2,k_h=1,k_w=1,d_h=1,d_w=1,name="d_hr_r0"))
